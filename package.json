@@ -1,0 +1,21 @@
+{
+  "name": "crossfiword-wars",
+  "version": "1.0.0",
+  "description": "An intense 1v1 online multiplayer word search game. Players are matched up to find words on a grid against the clock. Find words quickly to earn bonus time and outsmart your opponent in a best-of-five showdown. Each game features a unique, AI-generated puzzle.",
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild index.tsx --bundle --outfile=dist/index.js --define:process.env.API_KEY='\"$API_KEY\"' --jsx=automatic",
+    "dev": "esbuild index.tsx --bundle --outfile=dist/index.js --servedir=. --jsx=automatic --watch"
+  },
+  "dependencies": {
+    "@google/genai": "^1.12.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.3"
+  }
+}
