@@ -3,7 +3,6 @@ export enum GameState {
   Profile,
   Leaderboard,
   ModeSelection,
-  GameRooms,
   Lobby,
   CoinFlip,
   InGame,
@@ -28,15 +27,6 @@ export enum Direction {
   Vertical,
   Diagonal,
 }
-
-// Represents a multiplayer game room
-export interface Room {
-  id: string;
-  host: User;
-  guest: User | null;
-  status: 'waiting' | 'full';
-}
-
 
 // Represents a registered user with persistent stats
 export interface User {
@@ -79,6 +69,13 @@ export interface WordLocation {
 export interface GridData {
     grid: GridCell[][];
     words: WordLocation[];
+}
+
+export interface Room {
+  id: string;
+  host: User;
+  guest: User | null;
+  status: 'waiting' | 'full';
 }
 
 export enum ChatEventType {

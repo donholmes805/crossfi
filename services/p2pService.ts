@@ -44,6 +44,7 @@ export type P2PMessage =
   | { type: 'ACTION_USE_BONUS' }
   | { type: 'ACTION_FORFEIT' }
   | { type: 'REMATCH_REQUEST' }
+  | { type: 'THEME_VOTE'; payload: { theme: string } }
   | { type: 'REMATCH_ACCEPTED'; payload: { theme: string } }
   | { type: 'COIN_FLIP_RESULT'; payload: { result: 'Heads' | 'Tails'; winnerIndex: number; player1Call: 'Heads' | 'Tails' } };
 

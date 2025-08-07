@@ -69,6 +69,18 @@
       .modal-backdrop {
         --bs-backdrop-bg: #010409;
       }
+      @keyframes pulse-urgent {
+        50% { opacity: .7; transform: scale(1.05); }
+      }
+      @keyframes pulse-subtle {
+        50% { opacity: .85; }
+      }
+      .animate-pulse-urgent {
+        animation: pulse-urgent 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      .animate-pulse {
+        animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
     </style>
   <script type="importmap">
 {

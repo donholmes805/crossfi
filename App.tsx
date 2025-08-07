@@ -9,9 +9,9 @@ import ThemeVotingScreen from './components/ThemeVotingScreen';
 import LeaderboardScreen from './components/LeaderboardScreen';
 import ModeSelectionScreen from './components/ModeSelectionScreen';
 import WinnerCelebrationScreen from './components/WinnerCelebrationScreen';
-import { generateWordsAndGrid } from './services/gameService';
+import { generateWordsAndGrid, THEMES } from './services/gameService';
 import * as authService from './services/authService';
-import { p2pService, P2PMessage, GameStatePayload } from './services/p2pService';
+import { p2pService, P2PMessage } from './services/p2pService';
 import { PVP_WORDS_TO_WIN, PVC_WORDS_TO_WIN, AI_OPPONENTS, PVP_TOTAL_WORDS_IN_PUZZLE, PVC_TOTAL_WORDS_IN_PUZZLE } from './constants';
 import Logo from './components/icons/Logo';
 import Footer from './components/common/Footer';
@@ -37,16 +37,18 @@ const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [peerId, setPeerId] = useState<string | null>(null);
   const [rematchRequests, setRematchRequests] = useState<string[]>([]);
+  const [votes, setVotes] = useState<Record<string, string>>({});
 
-  // Auth & P2P initialization
+  // Auth & P2P system initialization
   useEffect(() => {
     const user = authService.getLoggedInUser();
-    if (user) setCurrentUser(user);
+    if (user) {
+      setCurrentUser(user);
+    }
     setIsAuthLoading(false);
 
     const handlePeerId = (id: string) => setPeerId(id);
     const handleConnectionOpen = () => {
-      // Guest connected to host, or host connected to guest
       if (p2pService.isHost) {
         setGameState(GameState.Lobby);
       }
@@ -72,6 +74,24 @@ const App: React.FC = () => {
     return () => unsubscribes.forEach(unsub => unsub());
   }, []);
 
+  // Handle joining a game via URL after user is authenticated
+  useEffect(() => {
+    if (currentUser && !p2pService.peer) {
+        const searchParams = new URLSearchParams(window.location.search);
+        const peerIdFromUrl = searchParams.get('join');
+        
+        if (peerIdFromUrl) {
+            // A join link was found. Initialize as a guest.
+            p2pService.initializeAsGuestAndConnect(peerIdFromUrl);
+            setGameMode(GameMode.PlayerVsPlayer);
+            setGameState(GameState.Lobby);
+            
+            // Clean the URL to prevent re-joining on refresh.
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }
+  }, [currentUser]);
+
   const handleP2PData = useCallback((data: P2PMessage) => {
     switch (data.type) {
         case 'START_GAME':
@@ -81,14 +101,13 @@ const App: React.FC = () => {
             setWinner(null);
             setMessages([]);
             setRematchRequests([]);
+            setVotes({});
             setPlayers(currentPlayers => currentPlayers.map(p => ({ ...p, score: 0, bonusTime: 0, bonusesEarned: 0 })));
             setGameState(GameState.InGame);
             break;
         case 'GAME_STATE_UPDATE':
             setPlayers(data.payload.players);
             setGridData(data.payload.gridData);
-            // setCurrentPlayerIndex(data.payload.currentPlayerIndex); // This state is managed by GameBoardScreen
-            // ... and other state properties if needed
             break;
         case 'GAME_OVER':
             setWinner(data.payload.winner);
@@ -105,9 +124,13 @@ const App: React.FC = () => {
                 return [...prev, otherPlayerId];
             });
             break;
-        case 'REMATCH_ACCEPTED':
-            handleThemeSelected(data.payload.theme);
+        case 'THEME_VOTE': {
+            const opponent = players.find(p => p.id !== currentUser?.id);
+            if (opponent) {
+                setVotes(prev => ({ ...prev, [opponent.id]: data.payload.theme }));
+            }
             break;
+        }
     }
   }, [players, currentUser]);
   
@@ -119,15 +142,6 @@ const App: React.FC = () => {
   const handleLogin = (user: User) => {
     authService.setCurrentUserId(user.id);
     setCurrentUser(user);
-
-    const searchParams = new URLSearchParams(window.location.search);
-    const peerIdFromUrl = searchParams.get('join');
-    if (peerIdFromUrl) {
-      p2pService.initializeAsGuestAndConnect(peerIdFromUrl);
-      setGameMode(GameMode.PlayerVsPlayer);
-      setGameState(GameState.Lobby);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
   };
 
   const handleLogout = () => {
@@ -194,21 +208,22 @@ const App: React.FC = () => {
       if (isPvc) {
         setGridData(data);
         setFirstPlayerIndex(fpIndex);
-        handleNavigate(GameState.InGame);
         setWinner(null);
         setMessages([]); 
         setRematchRequests([]);
+        setVotes({});
         setPlayers(currentPlayers => currentPlayers.map(p => ({ ...p, score: 0, bonusTime: 0, bonusesEarned: 0 })));
+        handleNavigate(GameState.InGame);
       } else {
-        // Host sends start signal to guest
         p2pService.sendMessage({ type: 'START_GAME', payload: { firstPlayerIndex: fpIndex, gridData: data, wordsToWin: wordsToWinForGame } });
         setGridData(data);
         setFirstPlayerIndex(fpIndex);
-        handleNavigate(GameState.InGame);
         setWinner(null);
         setMessages([]);
         setRematchRequests([]);
+        setVotes({});
         setPlayers(currentPlayers => currentPlayers.map(p => ({ ...p, score: 0, bonusTime: 0, bonusesEarned: 0 })));
+        handleNavigate(GameState.InGame);
       }
     } catch (err) {
         setError(err instanceof Error ? `Failed to start game: ${err.message}` : "An unknown error occurred.");
@@ -251,18 +266,19 @@ const App: React.FC = () => {
     setError(null);
     setMessages([]);
     setRematchRequests([]);
+    setVotes({});
   }, []);
   
   const handleRematchRequest = useCallback((playerId: string) => {
     setRematchRequests(prev => {
         if(prev.includes(playerId)) return prev;
         const newRequests = [...prev, playerId];
-        if (p2pService.isHost) {
+        if (gameMode === GameMode.PlayerVsPlayer) {
             p2pService.sendMessage({ type: 'REMATCH_REQUEST' });
         }
         return newRequests;
     });
-  }, []);
+  }, [gameMode]);
   
   useEffect(() => {
     if (rematchRequests.length === 2 && players.length === 2) {
@@ -270,17 +286,57 @@ const App: React.FC = () => {
     }
   }, [rematchRequests, players]);
 
+  const handleVote = (theme: string) => {
+    if (!currentUser) return;
+    setVotes(prev => ({ ...prev, [currentUser.id]: theme }));
+    if (gameMode === GameMode.PlayerVsPlayer) {
+        p2pService.sendMessage({ type: 'THEME_VOTE', payload: { theme } });
+    } else if (gameMode === GameMode.PlayerVsComputer) {
+        const aiPlayer = players.find(p => p.isAI);
+        if (aiPlayer) {
+            const randomTheme = THEMES[Math.floor(Math.random() * THEMES.length)];
+            setTimeout(() => setVotes(prev => ({ ...prev, [aiPlayer.id]: randomTheme })), 1500);
+        }
+    }
+  };
+
   const handleThemeSelected = useCallback(async (theme: string) => {
-    // For PvC, or for PvP when the user is the host, start the game directly.
-    if (gameMode === GameMode.PlayerVsComputer || p2pService.isHost) {
-        const nextFirstPlayerIndex = gameMode === GameMode.PlayerVsComputer ? 0 : (firstPlayerIndex + 1) % 2;
+    if (!gameMode) return;
+    if (gameMode === GameMode.PlayerVsComputer) {
+        await startNewGame(0, theme);
+    } else if (gameMode === GameMode.PlayerVsPlayer && p2pService.isHost) {
+        const nextFirstPlayerIndex = (firstPlayerIndex + 1) % 2;
         await startNewGame(nextFirstPlayerIndex, theme);
-    } else {
-        // For PvP guests, send a message to the host to start the game.
-        p2pService.sendMessage({ type: 'REMATCH_ACCEPTED', payload: { theme } });
-        // Guest just waits for host to start the new new game
     }
   }, [firstPlayerIndex, startNewGame, gameMode]);
+
+  useEffect(() => {
+    if (gameState !== GameState.ThemeVoting || players.length < 2) return;
+
+    const allVoted = Object.keys(votes).length === players.length;
+
+    if (allVoted) {
+        const winningTheme = (() => {
+            const [p1, p2] = players;
+            const vote1 = votes[p1.id];
+            const vote2 = votes[p2.id];
+            if (vote1 === vote2) return vote1;
+            // In PvP, host decides tie. In PvC, it's random.
+            if (gameMode === GameMode.PlayerVsPlayer) {
+                return p2pService.isHost ? vote1 : vote2; // Simple tie-break
+            }
+            return Math.random() < 0.5 ? vote1 : vote2;
+        })();
+        
+        // Only host initiates the next game in PvP
+        if (gameMode === GameMode.PlayerVsPlayer && !p2pService.isHost) return;
+
+        setTimeout(() => {
+            handleThemeSelected(winningTheme);
+        }, 2000);
+    }
+  }, [votes, players, gameState, gameMode, handleThemeSelected]);
+
 
   const handleSendMessage = useCallback((message: string, user: Player) => {
     const newMessage: ChatMessage = { userId: user.id, userName: user.name, message };
@@ -350,7 +406,7 @@ const App: React.FC = () => {
                     currentUser={currentUser}
                 />;
       case GameState.ThemeVoting:
-        return <ThemeVotingScreen players={players} onThemeSelected={handleThemeSelected} currentUser={currentUser}/>;
+        return <ThemeVotingScreen players={players} onVote={handleVote} currentUser={currentUser} votes={votes} />;
       default:
         return <ModeSelectionScreen onModeSelected={handleModeSelected} onBack={() => {}} onViewLeaderboard={() => handleNavigate(GameState.Leaderboard)} />;
     }
