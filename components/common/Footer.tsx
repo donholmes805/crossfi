@@ -2,19 +2,19 @@ import React from 'react';
 
 const Footer: React.FC = () => {
   return (
-    <footer className="w-full text-center p-4 mt-8">
-      <div className="text-sm text-gray-500">
+    <footer className="w-100 text-center p-4 mt-auto">
+      <div className="small text-body-secondary">
         <span>CrossFIWord Wars by </span>
         <a 
           href="https://fitotechnology.com" 
           target="_blank" 
           rel="noopener noreferrer" 
-          className="text-gray-400 hover:text-blue-400 hover:underline transition-colors"
+          className="text-body-secondary text-decoration-underline"
         >
           Fito Technology, LLC
         </a>
       </div>
-      <div className="text-xs text-gray-600 mt-1">
+      <div className="small text-body-tertiary mt-1">
         Copyright © 2025. All Rights Reserved.
       </div>
     </footer>

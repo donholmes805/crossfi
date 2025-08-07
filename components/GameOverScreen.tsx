@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
-import { Player } from '../types';
+import { Player, User } from '../types';
 import TrophyIcon from './icons/TrophyIcon';
 import UserAvatar from './icons/UserAvatar';
+import { p2pService } from '../services/p2pService';
 
 interface GameOverScreenProps {
   winner: Player;
@@ -9,71 +10,63 @@ interface GameOverScreenProps {
   onRematchRequest: (playerId: string) => void;
   onExit: () => void;
   rematchRequests: string[];
+  currentUser: User;
 }
 
 const PlayerRematchCard: React.FC<{ player: Player; onRematch: () => void; hasRequested: boolean; hasButton: boolean }> = ({ player, onRematch, hasRequested, hasButton }) => (
-  <div className="bg-black/20 p-6 rounded-lg w-full flex flex-col items-center text-center border border-gray-700">
-    <UserAvatar avatarKey={player.avatar} className="w-24 h-24 rounded-xl mb-4" />
-    <h3 className="text-xl font-bold text-gray-100 truncate w-full" title={player.name}>{player.name}</h3>
-    {hasRequested ? (
-      <p className="mt-4 text-lg font-semibold text-green-500 animate-pulse">Wants a rematch!</p>
-    ) : (
-      hasButton && (
-        <button
-          onClick={onRematch}
-          className="btn btn-secondary mt-4"
-        >
-          Request Rematch
-        </button>
-      )
-    )}
-    {!hasRequested && !hasButton && <p className="mt-4 text-lg font-semibold text-gray-400">Waiting...</p>}
+  <div className="card bg-dark text-light w-100">
+    <div className="card-body d-flex flex-column align-items-center text-center p-4">
+      <UserAvatar avatarKey={player.avatar} className="rounded mb-3" style={{ width: '96px', height: '96px' }} />
+      <h3 className="card-title h5 text-truncate w-100" title={player.name}>{player.name}</h3>
+      {hasRequested ? (
+        <p className="mt-3 h6 text-success">Wants a rematch!</p>
+      ) : (
+        hasButton ? (
+          <button onClick={onRematch} className="btn btn-secondary mt-3">Request Rematch</button>
+        ) : <p className="mt-3 text-body-secondary">Waiting...</p>
+      )}
+    </div>
   </div>
 );
 
-
-const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, players, onRematchRequest, onExit, rematchRequests }) => {
-  const aiPlayer = players.find(p => p.isAI);
-
+const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, players, onRematchRequest, onExit, rematchRequests, currentUser }) => {
+  const isPvc = players.some(p => p.isAI);
+  const aiPlayer = isPvc ? players.find(p => p.isAI) : null;
+  const humanPlayer = isPvc ? players.find(p => !p.isAI) : null;
+  
   useEffect(() => {
-    if (aiPlayer && !rematchRequests.includes(aiPlayer.id)) {
+    if (aiPlayer && humanPlayer && !rematchRequests.includes(aiPlayer.id)) {
       const timeout = setTimeout(() => {
         onRematchRequest(aiPlayer.id);
-      }, 1500); // AI requests rematch after 1.5s
+      }, 1500);
       return () => clearTimeout(timeout);
     }
-  }, [aiPlayer, rematchRequests, onRematchRequest]);
+  }, [aiPlayer, humanPlayer, rematchRequests, onRematchRequest]);
 
   return (
-    <div className="panel text-center p-10 flex flex-col items-center w-full max-w-4xl">
-      <TrophyIcon className="w-20 h-20 text-yellow-400 mb-4" />
-      <h2 className="text-4xl mb-2 text-gray-100">GAME OVER</h2>
-      <p className="text-2xl text-blue-400 font-semibold mb-8 text-glow-blue">
-        {winner.name} is the winner!
-      </p>
+    <div className="card bg-dark text-light w-100" style={{maxWidth: '800px'}}>
+      <div className="card-body text-center p-4 p-md-5">
+        <TrophyIcon className="text-warning mb-3" style={{width: '80px', height: '80px'}} />
+        <h2 className="card-title display-4">GAME OVER</h2>
+        <p className="h3 text-info text-glow-blue mb-4">
+          {winner.name} is the winner!
+        </p>
 
-      <div className="w-full grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-4 md:gap-8 mb-8">
-        {players.map(player => {
-            const humanPlayerCanRequest = !player.isAI && !rematchRequests.includes(player.id)
-            return (
-                <PlayerRematchCard 
-                    key={player.id}
-                    player={player}
-                    onRematch={() => onRematchRequest(player.id)}
-                    hasRequested={rematchRequests.includes(player.id)}
-                    hasButton={humanPlayerCanRequest}
-                />
-            )
-        })}
-        <div className="hidden md:block text-4xl font-black text-gray-500 my-4 md:my-0 order-first md:order-none transform md:-translate-x-1/2 left-1/2 absolute glitch">VS</div>
+        <div className="row align-items-center g-3 mb-4">
+          {players.map(player => (
+            <div className="col-md-5" key={player.id}>
+              <PlayerRematchCard
+                player={player}
+                onRematch={() => onRematchRequest(player.id)}
+                hasRequested={rematchRequests.includes(player.id)}
+                hasButton={!player.isAI && !rematchRequests.includes(player.id)}
+              />
+            </div>
+          )).reduce((prev, curr, i) => i === 0 ? [curr] : [...prev, <div key={`vs-${i}`} className="col-md-2 d-none d-md-block"><span className="display-4 fw-black text-secondary">VS</span></div>, curr], [] as JSX.Element[])}
+        </div>
+
+        <button onClick={onExit} className="btn btn-secondary">Back to Menu</button>
       </div>
-
-      <button
-        onClick={onExit}
-        className="btn btn-secondary"
-      >
-        Back to Menu
-      </button>
     </div>
   );
 };

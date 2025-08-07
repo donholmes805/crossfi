@@ -4,14 +4,16 @@ import UserAvatar from './icons/UserAvatar';
 
 interface ProfileScreenProps {
   currentUser: User;
-  onNavigate: (state: GameState) => void;
+  onNavigate: () => void;
   onDelete: () => void;
 }
 
 const StatCard = ({ label, value, className = '' }: { label: string; value: string | number; className?: string }) => (
-    <div className={`bg-black/20 p-4 rounded-lg text-center border border-gray-700 ${className}`}>
-        <p className="text-sm text-gray-400 font-medium uppercase tracking-wider">{label}</p>
-        <p className="text-3xl font-bold text-white mt-1">{value}</p>
+    <div className={`card bg-dark text-center ${className}`}>
+        <div className="card-body">
+            <h6 className="card-subtitle mb-2 text-body-secondary text-uppercase">{label}</h6>
+            <p className="card-text display-6 text-light">{value}</p>
+        </div>
     </div>
 );
 
@@ -26,44 +28,44 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onNavigate, 
     };
 
     return (
-        <div className="panel w-full max-w-3xl text-center p-6 md:p-8">
-            <h2 className="text-3xl mb-6 text-cyan-400 text-glow-cyan">Your Combat Record</h2>
+        <div className="card bg-dark text-light w-100" style={{maxWidth: '800px'}}>
+            <div className="card-body p-4 p-md-5">
+                <h2 className="card-title text-center h1 mb-4 text-info text-glow-cyan">Your Combat Record</h2>
 
-            <div className="flex flex-col items-center gap-4 mb-8">
-                <UserAvatar avatarKey={currentUser.avatar} className="w-32 h-32 rounded-2xl" />
-                <h3 className="text-4xl text-glow-cyan" style={{color: 'var(--color-cyan)'}}>{currentUser.name}</h3>
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-                <StatCard label="Total Games" value={totalGames} className="md:col-span-1" />
-                <StatCard label="Win Rate" value={winRate} className="md:col-span-2" />
-                <StatCard label="Wins" value={currentUser.wins} />
-                <StatCard label="Losses" value={currentUser.losses} />
-                <StatCard label="Bonuses Earned" value={currentUser.totalBonuses} />
-            </div>
-            
-            <div className="border-t-2 border-dashed border-gray-700 my-8"></div>
-            
-            <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-6">
-                <h4 className="text-xl text-red-400 text-glow-red">Danger Zone</h4>
-                <p className="text-red-400/80 mt-2 mb-4 text-sm">
-                    Permanently delete your profile and all associated data. This action cannot be undone.
-                </p>
-                <button
-                    onClick={handleDelete}
-                    className="btn btn-danger"
-                >
-                    Delete My Profile
-                </button>
-            </div>
+                <div className="text-center mb-4">
+                    <UserAvatar avatarKey={currentUser.avatar} className="rounded-circle mb-3" style={{width: '128px', height: '128px'}} />
+                    <h3 className="h1 text-info text-glow-cyan">{currentUser.name}</h3>
+                </div>
+                
+                <div className="row g-3 mb-4">
+                    <div className="col-md-4">
+                        <StatCard label="Total Games" value={totalGames} />
+                    </div>
+                     <div className="col-md-8">
+                        <StatCard label="Win Rate" value={winRate} />
+                    </div>
+                    <div className="col-6 col-md-4"><StatCard label="Wins" value={currentUser.wins} /></div>
+                    <div className="col-6 col-md-4"><StatCard label="Losses" value={currentUser.losses} /></div>
+                    <div className="col-12 col-md-4"><StatCard label="Bonuses Earned" value={currentUser.totalBonuses} /></div>
+                </div>
+                
+                <hr className="my-4" />
+                
+                <div className="card border-danger bg-danger-subtle text-danger-emphasis p-4">
+                    <h4 className="h5 text-danger">Danger Zone</h4>
+                    <p className="small">
+                        Permanently delete your profile and all associated data. This action cannot be undone.
+                    </p>
+                    <button onClick={handleDelete} className="btn btn-danger mt-2 align-self-center">
+                        Delete My Profile
+                    </button>
+                </div>
 
-            <div className="mt-8">
-                <button
-                    onClick={() => onNavigate(GameState.GameRooms)}
-                    className="btn btn-secondary"
-                >
-                    Back to Rooms
-                </button>
+                <div className="text-center mt-4">
+                    <button onClick={onNavigate} className="btn btn-secondary">
+                        Back to Menu
+                    </button>
+                </div>
             </div>
         </div>
     );

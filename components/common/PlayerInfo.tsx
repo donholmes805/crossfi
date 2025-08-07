@@ -15,56 +15,58 @@ interface PlayerInfoProps {
 const PlayerInfo: React.FC<PlayerInfoProps> = ({ player, isCurrent, gridData, wordsToWin }) => {
   const score = gridData.words.filter(w => w.foundBy === player.id).length;
   const scoreDots = Array.from({ length: wordsToWin }).map((_, i) => (
-    <div key={i} className={`w-4 h-4 rounded-full transition-all duration-500 ${i < score ? 'bg-blue-500 shadow-[0_0_8px_var(--color-blue)]' : 'bg-gray-600'}`}></div>
+    <div key={i} className={`rounded-circle ${i < score ? 'bg-info' : 'bg-secondary'}`} style={{ width: '16px', height: '16px', transition: 'background-color 0.5s' }}></div>
   ));
 
   return (
-    <div className={`panel p-4 md:p-6 rounded-lg transition-all duration-300 ${isCurrent ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-500/20' : ''}`}>
-      <div className="flex items-center gap-4 mb-4">
-        <UserAvatar avatarKey={player.avatar} className="w-16 h-16 rounded-lg flex-shrink-0" />
-        <div className="overflow-hidden">
-          <h3 className={`text-xl truncate ${isCurrent ? 'text-cyan-400 text-glow-cyan' : 'text-gray-200'}`} title={player.name}>{player.name}</h3>
-          {player.isAI ? 
-            <p className="text-xs text-red-400 font-bold">[AI OPPONENT]</p>
-            : <p className="text-xs text-gray-400">W: {player.wins} | L: {player.losses}</p>
-          }
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <p className="text-sm font-semibold text-gray-400 mb-2">SCORE</p>
-          <div className="flex items-center flex-wrap gap-3">
-            {scoreDots}
+    <div className={`card h-100 ${isCurrent ? 'border-info' : ''}`}>
+      <div className="card-body p-3">
+        <div className="d-flex align-items-center gap-3 mb-3">
+          <UserAvatar avatarKey={player.avatar} className="rounded flex-shrink-0" style={{width: '64px', height: '64px'}} />
+          <div className="overflow-hidden">
+            <h3 className={`h5 text-truncate ${isCurrent ? 'text-info text-glow-cyan' : 'text-light'}`} title={player.name}>{player.name}</h3>
+            {player.isAI ? 
+              <p className="small text-danger">[AI OPPONENT]</p>
+              : <p className="small text-body-secondary">W: {player.wins} | L: {player.losses}</p>
+            }
           </div>
         </div>
-        
-        {isCurrent && !player.isAI && (
+
+        <div className="d-flex flex-column gap-3">
+          <div>
+            <p className="small fw-semibold text-body-secondary mb-2">SCORE</p>
+            <div className="d-flex flex-wrap gap-2">
+              {scoreDots}
+            </div>
+          </div>
+          
+          {isCurrent && !player.isAI && (
             <div>
-              <p className="text-sm font-semibold text-gray-400 mb-2">BONUSES</p>
-              <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 text-yellow-400" title="Available bonus tokens">
-                      <StarIcon className="w-6 h-6"/>
-                      <span className="text-lg font-bold">{Math.floor(player.bonusTime / BONUS_TIME_AWARD)}</span>
+              <p className="small fw-semibold text-body-secondary mb-2">BONUSES</p>
+              <div className="d-flex align-items-center gap-4">
+                  <div className="d-flex align-items-center gap-2 text-warning" title="Available bonus tokens">
+                      <StarIcon style={{width: '24px', height: '24px'}}/>
+                      <span className="h5 mb-0 fw-bold">{Math.floor(player.bonusTime / BONUS_TIME_AWARD)}</span>
                   </div>
-                   <div className="flex items-center gap-2 text-gray-200" title="Total bonus time available">
-                      <ClockIcon className="w-5 h-5"/>
-                      <span className="text-lg font-bold">{player.bonusTime}s</span>
+                   <div className="d-flex align-items-center gap-2 text-light" title="Total bonus time available">
+                      <ClockIcon style={{width: '20px', height: '20px'}}/>
+                      <span className="h5 mb-0 fw-bold">{player.bonusTime}s</span>
                   </div>
               </div>
             </div>
-        )}
-        
-        <div>
-          <p className="text-sm font-semibold text-gray-400 mb-2">WORDS FOUND</p>
-          <ul className="h-24 overflow-y-auto space-y-1 pr-2 rounded-md bg-black/20 p-1">
-              {gridData.words.filter(w => w.foundBy === player.id).map(w => (
-                  <li key={w.text} className="text-sm bg-gray-700/50 border border-gray-600 px-2 py-1 rounded text-gray-300 tracking-wider">
-                      {w.text}
-                  </li>
-              ))}
-              {score === 0 && <li className="text-sm text-gray-400 px-2 py-1">No words found yet.</li>}
-          </ul>
+          )}
+          
+          <div>
+            <p className="small fw-semibold text-body-secondary mb-2">WORDS FOUND</p>
+            <ul className="list-unstyled overflow-y-auto p-1 bg-black bg-opacity-25 rounded" style={{ height: '96px' }}>
+                {gridData.words.filter(w => w.foundBy === player.id).map(w => (
+                    <li key={w.text} className="small bg-secondary bg-opacity-25 border border-secondary rounded px-2 py-1 mb-1 text-light">
+                        {w.text}
+                    </li>
+                ))}
+                {score === 0 && <li className="small text-body-secondary p-2">No words found yet.</li>}
+            </ul>
+          </div>
         </div>
       </div>
     </div>

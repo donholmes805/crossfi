@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { GameState, Player, User, ChatMessage, GameMode, Difficulty, Room, GridData } from './types';
+import { GameState, Player, User, ChatMessage, GameMode, Difficulty, GridData } from './types';
 import LobbyScreen from './components/LobbyScreen';
 import GameBoardScreen from './components/GameBoardScreen';
 import GameOverScreen from './components/GameOverScreen';
@@ -8,12 +8,11 @@ import CoinFlipScreen from './components/CoinFlipScreen';
 import ThemeVotingScreen from './components/ThemeVotingScreen';
 import LeaderboardScreen from './components/LeaderboardScreen';
 import ModeSelectionScreen from './components/ModeSelectionScreen';
-import GameRoomsScreen from './components/GameRoomsScreen';
 import WinnerCelebrationScreen from './components/WinnerCelebrationScreen';
 import { generateWordsAndGrid } from './services/gameService';
 import * as authService from './services/authService';
-import * as roomService from './services/roomService';
-import { PVP_WORDS_TO_WIN, PVP_TOTAL_WORDS_IN_PUZZLE, PVC_WORDS_TO_WIN, PVC_TOTAL_WORDS_IN_PUZZLE } from './constants';
+import { p2pService, P2PMessage, GameStatePayload } from './services/p2pService';
+import { PVP_WORDS_TO_WIN, PVC_WORDS_TO_WIN, AI_OPPONENTS, PVP_TOTAL_WORDS_IN_PUZZLE, PVC_TOTAL_WORDS_IN_PUZZLE } from './constants';
 import Logo from './components/icons/Logo';
 import Footer from './components/common/Footer';
 import LoginModal from './components/LoginModal';
@@ -22,8 +21,8 @@ import ProfileWidget from './components/ProfileWidget';
 import ProfileScreen from './components/ProfileScreen';
 
 const App: React.FC = () => {
-  const [gameState, setGameState] = useState<GameState>(GameState.GameRooms);
-  const [gameMode, setGameMode] = useState<GameMode>(GameMode.PlayerVsPlayer);
+  const [gameState, setGameState] = useState<GameState>(GameState.ModeSelection);
+  const [gameMode, setGameMode] = useState<GameMode | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.Easy);
   const [players, setPlayers] = useState<Player[]>([]);
   const [gridData, setGridData] = useState<GridData | null>(null);
@@ -34,66 +33,117 @@ const App: React.FC = () => {
   const [firstPlayerIndex, setFirstPlayerIndex] = useState(0);
   const [wordsToWin, setWordsToWin] = useState(PVP_WORDS_TO_WIN);
   
-  // Auth state
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-
-  // Room state
-  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
-
-  // Rematch state
+  const [peerId, setPeerId] = useState<string | null>(null);
   const [rematchRequests, setRematchRequests] = useState<string[]>([]);
 
-  // Effect to load logged-in user from local storage on startup
+  // Auth & P2P initialization
   useEffect(() => {
     const user = authService.getLoggedInUser();
-    if (user) {
-      setCurrentUser(user);
-    }
+    if (user) setCurrentUser(user);
     setIsAuthLoading(false);
+
+    const handlePeerId = (id: string) => setPeerId(id);
+    const handleConnectionOpen = () => {
+      // Guest connected to host, or host connected to guest
+      if (p2pService.isHost) {
+        setGameState(GameState.Lobby);
+      }
+    };
+    const handleConnectionClosed = () => {
+        setError("Opponent disconnected.");
+        p2pService.disconnect();
+        handleNavigate(GameState.ModeSelection);
+    };
+    const handleError = (err: Error) => {
+        console.error("P2P Error:", err);
+        setError(`Connection error: ${err.message}. Please refresh and try again.`);
+        p2pService.disconnect();
+    };
+
+    const unsubscribes = [
+      p2pService.on('peer-id-generated', handlePeerId),
+      p2pService.on('connection-open', handleConnectionOpen),
+      p2pService.on('connection-closed', handleConnectionClosed),
+      p2pService.on('error', handleError),
+    ];
+
+    return () => unsubscribes.forEach(unsub => unsub());
   }, []);
 
-  // Effect to handle joining a room from a URL
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const roomIdFromUrl = searchParams.get('room');
-
-    // Only try to join if a user is logged in and a room ID is present
-    if (roomIdFromUrl && currentUser) {
-      if (currentRoomId === roomIdFromUrl) return;
-
-      const joinedRoom = roomService.joinRoom(roomIdFromUrl, currentUser);
-      // Clean the URL to prevent re-joining on refresh
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      if (joinedRoom) {
-          setCurrentRoomId(roomIdFromUrl);
-          setGameMode(GameMode.PlayerVsPlayer);
-          setGameState(GameState.Lobby);
-      } else {
-          setError('Could not join room. It might be full or you tried to join your own room.');
-          setGameState(GameState.GameRooms);
-      }
+  const handleP2PData = useCallback((data: P2PMessage) => {
+    switch (data.type) {
+        case 'START_GAME':
+            setGridData(data.payload.gridData);
+            setFirstPlayerIndex(data.payload.firstPlayerIndex);
+            setWordsToWin(data.payload.wordsToWin);
+            setWinner(null);
+            setMessages([]);
+            setRematchRequests([]);
+            setPlayers(currentPlayers => currentPlayers.map(p => ({ ...p, score: 0, bonusTime: 0, bonusesEarned: 0 })));
+            setGameState(GameState.InGame);
+            break;
+        case 'GAME_STATE_UPDATE':
+            setPlayers(data.payload.players);
+            setGridData(data.payload.gridData);
+            // setCurrentPlayerIndex(data.payload.currentPlayerIndex); // This state is managed by GameBoardScreen
+            // ... and other state properties if needed
+            break;
+        case 'GAME_OVER':
+            setWinner(data.payload.winner);
+            setPlayers(data.payload.finalPlayers);
+            setGameState(GameState.WinnerCelebration);
+            break;
+        case 'CHAT_MESSAGE':
+            setMessages(prev => [...prev, data.payload]);
+            break;
+        case 'REMATCH_REQUEST':
+            setRematchRequests(prev => {
+                const otherPlayerId = players.find(p => p.id !== currentUser?.id)?.id;
+                if (!otherPlayerId || prev.includes(otherPlayerId)) return prev;
+                return [...prev, otherPlayerId];
+            });
+            break;
+        case 'REMATCH_ACCEPTED':
+            handleThemeSelected(data.payload.theme);
+            break;
+        case 'FLIP_COMPLETE':
+            handleFlipComplete(data.payload.firstPlayerIndex);
+            break;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser]); // This should run once the user logs in.
+  }, [players, currentUser]);
+  
+  // Subscribe to P2P data events
+  useEffect(() => {
+    return p2pService.on('data-received', handleP2PData);
+  }, [handleP2PData]);
 
   const handleLogin = (user: User) => {
     authService.setCurrentUserId(user.id);
     setCurrentUser(user);
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const peerIdFromUrl = searchParams.get('join');
+    if (peerIdFromUrl) {
+      p2pService.initializeAsGuestAndConnect(peerIdFromUrl);
+      setGameMode(GameMode.PlayerVsPlayer);
+      setGameState(GameState.Lobby);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   };
 
   const handleLogout = () => {
     authService.clearCurrentUserId();
     setCurrentUser(null);
-    setGameState(GameState.GameRooms);
+    p2pService.disconnect();
+    setGameState(GameState.ModeSelection);
   };
   
   const handleDeleteCurrentUser = () => {
     if (currentUser) {
-        authService.deleteUser(currentUser.id); // This also logs out
-        setCurrentUser(null);
-        setGameState(GameState.GameRooms);
+        authService.deleteUser(currentUser.id);
+        handleLogout();
     }
   };
 
@@ -103,80 +153,67 @@ const App: React.FC = () => {
   };
 
   const handleModeSelected = useCallback((mode: GameMode, diff: Difficulty) => {
-    if (!currentUser) return; // Should be impossible if this is called from UI
+    if (!currentUser) return;
     setGameMode(mode);
     setDifficulty(diff);
     setError(null);
 
     if (mode === GameMode.PlayerVsComputer) {
-        setCurrentRoomId(null);
+        const aiOpponent = AI_OPPONENTS[diff];
+        const initialPlayers = [
+          { ...currentUser, score: 0, bonusTime: 0, bonusesEarned: 0 },
+          { ...aiOpponent, score: 0, bonusTime: 0, bonusesEarned: 0 },
+        ];
+        setPlayers(initialPlayers);
         handleNavigate(GameState.Lobby);
     } else {
-        const newRoom = roomService.createRoom(currentUser);
-        setCurrentRoomId(newRoom.id);
+        p2pService.initializeAsHost();
+        const hostPlayer = { ...currentUser, score: 0, bonusTime: 0, bonusesEarned: 0 };
+        setPlayers([hostPlayer]);
         handleNavigate(GameState.Lobby);
-    }
-  }, [currentUser]);
-
-  const handleJoinRoom = useCallback((roomId: string) => {
-    if (!currentUser) return;
-    setError(null);
-    const joinedRoom = roomService.joinRoom(roomId, currentUser);
-    if (joinedRoom) {
-        setCurrentRoomId(roomId);
-        handleNavigate(GameState.Lobby);
-    } else {
-        setError('Could not join room. It might be full or no longer exists.');
     }
   }, [currentUser]);
 
   const handleLeaveLobby = useCallback(() => {
-    if (currentRoomId && currentUser) {
-        roomService.leaveRoom(currentRoomId, currentUser.id);
-        setCurrentRoomId(null);
-    }
-    handleNavigate(GameState.GameRooms);
-  }, [currentRoomId, currentUser]);
-
-  const handleReadyToStart = useCallback((player1: User, player2: User) => {
-    const newPlayers = [
-      { ...player1, score: 0, bonusTime: 0, bonusesEarned: 0 },
-      { ...player2, score: 0, bonusTime: 0, bonusesEarned: 0 },
-    ];
-    setPlayers(newPlayers);
-    
-    if (gameMode === GameMode.PlayerVsComputer) {
-      startNewGame(0);
-    } else {
-      handleNavigate(GameState.CoinFlip);
-    }
-  }, [gameMode]);
+    p2pService.disconnect();
+    setPeerId(null);
+    setPlayers([]);
+    handleNavigate(GameState.ModeSelection);
+  }, []);
   
   const startNewGame = useCallback(async (fpIndex: number, theme?: string) => {
+    if (!gameMode) return;
     setIsLoading(true);
     setError(null);
 
     const isPvc = gameMode === GameMode.PlayerVsComputer;
     const wordsToWinForGame = isPvc ? PVC_WORDS_TO_WIN : PVP_WORDS_TO_WIN;
     const totalWordsForGame = isPvc ? PVC_TOTAL_WORDS_IN_PUZZLE : PVP_TOTAL_WORDS_IN_PUZZLE;
-    
     setWordsToWin(wordsToWinForGame);
 
     try {
       const data = await generateWordsAndGrid(totalWordsForGame, theme);
-      setGridData(data);
-      setFirstPlayerIndex(fpIndex);
-      handleNavigate(GameState.InGame);
-      setWinner(null);
-      setMessages([]); 
-      setRematchRequests([]);
-      setPlayers(currentPlayers => currentPlayers.map(p => ({ ...p, score: 0, bonusTime: 0, bonusesEarned: 0 })));
+      if (isPvc) {
+        setGridData(data);
+        setFirstPlayerIndex(fpIndex);
+        handleNavigate(GameState.InGame);
+        setWinner(null);
+        setMessages([]); 
+        setRematchRequests([]);
+        setPlayers(currentPlayers => currentPlayers.map(p => ({ ...p, score: 0, bonusTime: 0, bonusesEarned: 0 })));
+      } else {
+        // Host sends start signal to guest
+        p2pService.sendMessage({ type: 'START_GAME', payload: { firstPlayerIndex: fpIndex, gridData: data, wordsToWin: wordsToWinForGame } });
+        setGridData(data);
+        setFirstPlayerIndex(fpIndex);
+        handleNavigate(GameState.InGame);
+        setWinner(null);
+        setMessages([]);
+        setRematchRequests([]);
+        setPlayers(currentPlayers => currentPlayers.map(p => ({ ...p, score: 0, bonusTime: 0, bonusesEarned: 0 })));
+      }
     } catch (err) {
-        if (err instanceof Error) {
-            setError(`Failed to start game: ${err.message}. Please ensure your API key is set up correctly.`);
-        } else {
-            setError("An unknown error occurred.");
-        }
+        setError(err instanceof Error ? `Failed to start game: ${err.message}` : "An unknown error occurred.");
         handleNavigate(GameState.Lobby);
     } finally {
       setIsLoading(false);
@@ -184,6 +221,9 @@ const App: React.FC = () => {
   }, [gameMode]);
 
   const handleFlipComplete = useCallback(async (fpIndex: number) => {
+    if (p2pService.isHost) {
+      p2pService.sendMessage({ type: 'FLIP_COMPLETE', payload: { firstPlayerIndex: fpIndex } });
+    }
     await startNewGame(fpIndex);
   }, [startNewGame]);
 
@@ -191,43 +231,39 @@ const App: React.FC = () => {
     setWinner(winningPlayer);
     setPlayers(finalPlayersState);
     handleNavigate(GameState.WinnerCelebration);
-
-    if (gameMode === GameMode.PlayerVsPlayer && currentRoomId && winningPlayer.id === roomService.getRoom(currentRoomId)?.host.id) {
-        roomService.deleteRoom(currentRoomId);
+    
+    if (p2pService.isHost) {
+        p2pService.sendMessage({ type: 'GAME_OVER', payload: { winner: winningPlayer, finalPlayers: finalPlayersState } });
     }
 
     const losingPlayer = finalPlayersState.find(p => p.id !== winningPlayer.id);
-    if (!losingPlayer) return;
-
-    const winnerFromState = finalPlayersState.find(p => p.id === winningPlayer.id)!;
-    
-    if (!winnerFromState.isAI && !losingPlayer.isAI) {
-      authService.updateStats(winnerFromState, losingPlayer);
+    if (losingPlayer && !winningPlayer.isAI && !losingPlayer.isAI) {
+      authService.updateStats(winningPlayer, losingPlayer);
     }
-  }, [gameMode, currentRoomId]);
-
-  const handleCelebrationEnd = useCallback(() => {
-    handleNavigate(GameState.GameOver);
   }, []);
+
+  const handleCelebrationEnd = useCallback(() => handleNavigate(GameState.GameOver), []);
   
-  const handleExitToGameRooms = useCallback(() => {
-    if (gameMode === GameMode.PlayerVsPlayer && currentRoomId) {
-        roomService.deleteRoom(currentRoomId);
-    }
-    setCurrentRoomId(null);
-    handleNavigate(GameState.GameRooms);
+  const handleExitToMenu = useCallback(() => {
+    p2pService.disconnect();
+    setPeerId(null);
+    handleNavigate(GameState.ModeSelection);
     setPlayers([]);
     setGridData(null);
     setWinner(null);
     setError(null);
     setMessages([]);
     setRematchRequests([]);
-  }, [gameMode, currentRoomId]);
+  }, []);
   
   const handleRematchRequest = useCallback((playerId: string) => {
     setRematchRequests(prev => {
         if(prev.includes(playerId)) return prev;
-        return [...prev, playerId]
+        const newRequests = [...prev, playerId];
+        if (p2pService.isHost) {
+            p2pService.sendMessage({ type: 'REMATCH_REQUEST' });
+        }
+        return newRequests;
     });
   }, []);
   
@@ -238,48 +274,62 @@ const App: React.FC = () => {
   }, [rematchRequests, players]);
 
   const handleThemeSelected = useCallback(async (theme: string) => {
-    const nextFirstPlayerIndex = gameMode === GameMode.PlayerVsComputer ? 0 : (firstPlayerIndex + 1) % 2;
-    await startNewGame(nextFirstPlayerIndex, theme);
+    if (p2pService.isHost) {
+        const nextFirstPlayerIndex = gameMode === GameMode.PlayerVsComputer ? 0 : (firstPlayerIndex + 1) % 2;
+        await startNewGame(nextFirstPlayerIndex, theme);
+    } else {
+        p2pService.sendMessage({ type: 'REMATCH_ACCEPTED', payload: { theme } });
+        // Guest just waits for host to start the new game
+    }
   }, [firstPlayerIndex, startNewGame, gameMode]);
 
-
   const handleSendMessage = useCallback((message: string, user: Player) => {
-    const newMessage: ChatMessage = {
-      userId: user.id,
-      userName: user.name,
-      message,
-    };
-    setMessages(prevMessages => [...prevMessages, newMessage]);
-  }, []);
+    const newMessage: ChatMessage = { userId: user.id, userName: user.name, message };
+    setMessages(prev => [...prev, newMessage]);
+    if (gameMode === GameMode.PlayerVsPlayer) {
+        p2pService.sendMessage({ type: 'CHAT_MESSAGE', payload: newMessage });
+    }
+  }, [gameMode]);
+  
+  const handleReadyToStart = (player1: User, player2: User) => {
+    const newPlayers = [
+      { ...player1, score: 0, bonusTime: 0, bonusesEarned: 0 },
+      { ...player2, score: 0, bonusTime: 0, bonusesEarned: 0 },
+    ];
+    setPlayers(newPlayers);
+    if (gameMode === GameMode.PlayerVsComputer) {
+      startNewGame(0);
+    } else {
+      handleNavigate(GameState.CoinFlip);
+    }
+  };
 
   const renderContent = () => {
-    if (!currentUser) return null; // Should not be reached if auth flow is correct
+    if (!currentUser) return null;
 
     switch (gameState) {
       case GameState.Profile:
-        return <ProfileScreen currentUser={currentUser} onDelete={handleDeleteCurrentUser} onNavigate={handleNavigate} />;
+        return <ProfileScreen currentUser={currentUser} onDelete={handleDeleteCurrentUser} onNavigate={() => handleNavigate(GameState.ModeSelection)} />;
       case GameState.Leaderboard:
-        return <LeaderboardScreen onBack={() => handleNavigate(GameState.GameRooms)} />;
+        return <LeaderboardScreen onBack={() => handleNavigate(GameState.ModeSelection)} />;
       case GameState.ModeSelection:
-        return <ModeSelectionScreen onModeSelected={handleModeSelected} onBack={() => handleNavigate(GameState.GameRooms)} />;
-      case GameState.GameRooms:
-        return <GameRoomsScreen currentUser={currentUser} onNewGame={() => handleNavigate(GameState.ModeSelection)} onJoinRoom={handleJoinRoom} onViewLeaderboard={() => handleNavigate(GameState.Leaderboard)} error={error} />;
+        return <ModeSelectionScreen onModeSelected={handleModeSelected} onBack={() => {}} onViewLeaderboard={() => handleNavigate(GameState.Leaderboard)} />;
       case GameState.Lobby:
         return <LobbyScreen 
                     onReadyToStart={handleReadyToStart} 
                     isLoading={isLoading} 
                     error={error} 
                     currentUser={currentUser} 
-                    onBack={gameMode === GameMode.PlayerVsPlayer ? handleLeaveLobby : () => handleNavigate(GameState.ModeSelection)}
-                    gameMode={gameMode}
+                    onBack={handleLeaveLobby}
+                    gameMode={gameMode!}
                     difficulty={difficulty}
-                    roomId={currentRoomId}
+                    peerId={peerId}
+                    setPlayers={setPlayers}
                 />;
       case GameState.CoinFlip:
         return <CoinFlipScreen players={players} onFlipComplete={handleFlipComplete} />;
       case GameState.InGame:
-        return (
-          gridData && <GameBoardScreen 
+        return gridData && <GameBoardScreen 
             initialPlayers={players}
             initialGridData={gridData}
             firstPlayerIndex={firstPlayerIndex}
@@ -288,8 +338,7 @@ const App: React.FC = () => {
             onSendMessage={handleSendMessage}
             wordsToWin={wordsToWin}
             currentUser={currentUser}
-          />
-        );
+          />;
       case GameState.WinnerCelebration:
         return winner && <WinnerCelebrationScreen winner={winner} onComplete={handleCelebrationEnd} />;
       case GameState.GameOver:
@@ -297,48 +346,42 @@ const App: React.FC = () => {
                     winner={winner} 
                     players={players}
                     onRematchRequest={handleRematchRequest}
-                    onExit={handleExitToGameRooms}
+                    onExit={handleExitToMenu}
                     rematchRequests={rematchRequests}
+                    currentUser={currentUser}
                 />;
       case GameState.ThemeVoting:
-        return <ThemeVotingScreen players={players} onThemeSelected={handleThemeSelected} />;
+        return <ThemeVotingScreen players={players} onThemeSelected={handleThemeSelected} currentUser={currentUser}/>;
       default:
-        return <GameRoomsScreen currentUser={currentUser} onNewGame={() => handleNavigate(GameState.ModeSelection)} onJoinRoom={handleJoinRoom} onViewLeaderboard={() => handleNavigate(GameState.Leaderboard)} error={error} />;
+        return <ModeSelectionScreen onModeSelected={handleModeSelected} onBack={() => {}} onViewLeaderboard={() => handleNavigate(GameState.Leaderboard)} />;
     }
   };
 
   if (isAuthLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-xl animate-pulse" style={{fontFamily: 'var(--font-display)'}}>Loading Game...</p>
+      <div className="vh-100 d-flex align-items-center justify-content-center">
+        <p className="h3">Loading Game...</p>
       </div>
     );
   }
 
   if (!currentUser) {
     const searchParams = new URLSearchParams(window.location.search);
-    const roomIdFromUrl = searchParams.get('room');
-    const room = roomIdFromUrl ? roomService.getRoom(roomIdFromUrl) : null;
-    const otherPlayer = room ? room.host : null;
-
-    if (otherPlayer) {
-      // User is joining a specific room, show AuthModal with opponent info
-      return <AuthModal onLogin={handleLogin} onClose={() => {}} otherPlayer={otherPlayer} />;
-    }
-    
-    // Standard login/signup flow
-    return <LoginModal onLogin={handleLogin} onClose={() => {}} initialView="login" />;
+    const peerIdFromUrl = searchParams.get('join');
+    return peerIdFromUrl ? 
+        <AuthModal onLogin={handleLogin} /> 
+        : <LoginModal onLogin={handleLogin} />;
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 md:p-8 relative">
+    <div className="d-flex flex-column align-items-center p-3 p-sm-4 p-md-5 vh-100">
         <ProfileWidget currentUser={currentUser} onLogout={handleLogout} onNavigate={handleNavigate} />
-        <header className="w-full max-w-5xl mx-auto text-center mb-8 flex flex-col items-center">
-            <Logo className="w-full max-w-lg h-auto text-glow-cyan" style={{filter: 'drop-shadow(0 0 10px var(--color-cyan))'}}/>
-            <h1 className="mt-2 text-lg text-glow-cyan" style={{color: 'var(--color-cyan)'}}>An AI-Powered 1v1 Crossword Battle</h1>
+        <header className="w-100 text-center mb-5">
+            <Logo className="w-100 h-auto mx-auto" style={{maxWidth: '500px', filter: 'drop-shadow(0 0 10px #22d3ee)'}}/>
+            <h1 className="mt-2 h6 text-info text-glow-cyan">An AI-Powered 1v1 Crossword Battle</h1>
         </header>
-        <main className="w-full flex-grow flex items-center justify-center">
-            <div key={gameState} className="w-full animate-fade-in flex justify-center">
+        <main className="w-100 flex-grow-1 d-flex align-items-center justify-content-center">
+            <div key={gameState} className="w-100 animate-fade-in d-flex justify-content-center">
               {renderContent()}
             </div>
         </main>

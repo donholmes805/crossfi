@@ -9,10 +9,12 @@
   },
   "dependencies": {
     "@google/genai": "^1.12.0",
+    "peerjs": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@types/peerjs": "^1.1.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "esbuild": "^0.23.0",

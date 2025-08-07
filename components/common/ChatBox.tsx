@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../types';
+import { ChatMessage } from '../../types';
 
 interface ChatBoxProps {
   messages: ChatMessage[];
@@ -27,40 +27,44 @@ const ChatBox: React.FC<ChatBoxProps> = ({ messages, onSendMessage, isLocked, cu
   };
 
   return (
-    <div className="panel p-4 flex flex-col h-full w-full mt-4 min-h-[300px] max-h-[400px]">
-      <h3 className="text-lg font-bold text-gray-200 mb-2 border-b border-gray-700 pb-2">Game Chat</h3>
-      <div className="flex-grow overflow-y-auto pr-2 space-y-3">
-        {messages.map((msg, index) => (
-          <div key={index} className={`flex flex-col ${msg.userName === currentUserName ? 'items-end' : 'items-start'}`}>
-            <div className={`rounded-lg px-3 py-2 max-w-[80%] ${msg.userName === currentUserName ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`}>
-              <p className={`text-sm font-bold ${msg.userName === currentUserName ? 'text-white/80' : 'text-gray-100'}`}>{msg.userName}</p>
-              <p className="break-words">{msg.message}</p>
+    <div className="card bg-transparent w-100 mt-4" style={{ minHeight: '300px', maxHeight: '400px' }}>
+      <div className="card-body p-2 d-flex flex-column h-100">
+        <h3 className="h6 text-light mb-2 border-bottom border-secondary pb-2">Game Chat</h3>
+        <div className="flex-grow-1 overflow-y-auto pe-2">
+          {messages.map((msg, index) => (
+            <div key={index} className={`d-flex flex-column mb-2 ${msg.userName === currentUserName ? 'align-items-end' : 'align-items-start'}`}>
+              <div className={`rounded p-2`} style={{ maxWidth: '80%', backgroundColor: msg.userName === currentUserName ? 'var(--bs-primary)' : 'var(--bs-secondary-bg)' }}>
+                <p className="small fw-bold mb-0" style={{color: msg.userName === currentUserName ? 'var(--bs-light)' : 'var(--bs-info)'}}>{msg.userName}</p>
+                <p className="mb-0" style={{wordBreak: 'break-word'}}>{msg.message}</p>
+              </div>
             </div>
-          </div>
-        ))}
-        {messages.length === 0 && (
-            <p className="text-gray-400 text-center text-sm pt-4">No messages yet. Say something!</p>
-        )}
-        <div ref={messagesEndRef} />
+          ))}
+          {messages.length === 0 && (
+              <p className="text-body-secondary text-center small pt-4">No messages yet. Say something!</p>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+        <form onSubmit={handleSubmit} className="mt-2">
+            <div className="input-group">
+                <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder={isLocked ? "Wait for your turn to chat..." : "Type a message..."}
+                    disabled={isLocked}
+                    className="form-control"
+                    aria-label="Chat message input"
+                />
+                <button
+                    type="submit"
+                    disabled={isLocked || !newMessage.trim()}
+                    className="btn btn-primary"
+                >
+                    Send
+                </button>
+            </div>
+        </form>
       </div>
-      <form onSubmit={handleSubmit} className="mt-4 flex gap-2">
-        <input
-          type="text"
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder={isLocked ? "Wait for your turn to chat..." : "Type a message..."}
-          disabled={isLocked}
-          className="form-input flex-grow"
-          aria-label="Chat message input"
-        />
-        <button
-          type="submit"
-          disabled={isLocked || !newMessage.trim()}
-          className="btn btn-primary"
-        >
-          Send
-        </button>
-      </form>
     </div>
   );
 };

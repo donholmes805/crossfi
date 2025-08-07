@@ -1,147 +1,99 @@
 import React, { useState, useEffect } from 'react';
-import { Player } from '../types';
+import { Player, User } from '../types';
 import { THEMES } from '../services/gameService';
 import UserAvatar from './icons/UserAvatar';
+import { p2pService } from '../services/p2pService';
 
 interface ThemeVotingScreenProps {
   players: Player[];
   onThemeSelected: (theme: string) => void;
+  currentUser: User;
 }
 
-// Function to get 3 unique random themes
-const getRandomThemes = () => {
-    const shuffled = [...THEMES].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 3);
-};
+const getRandomThemes = () => [...THEMES].sort(() => 0.5 - Math.random()).slice(0, 3);
 
-const ThemeVotingScreen: React.FC<ThemeVotingScreenProps> = ({ players, onThemeSelected }) => {
-    if (!players || players.length < 2) {
-        return null; // or a loading spinner
-    }
-
+const ThemeVotingScreen: React.FC<ThemeVotingScreenProps> = ({ players, onThemeSelected, currentUser }) => {
     const [themes] = useState<string[]>(getRandomThemes);
-    const [votes, setVotes] = useState<Record<string, string>>({}); // { playerId: themeName }
+    const [votes, setVotes] = useState<Record<string, string>>({});
     
     const [player1, player2] = players;
-    const aiPlayer = players.find(p => p.isAI);
+    const isPvc = players.some(p => p.isAI);
+    const humanPlayer = isPvc ? players.find(p => !p.isAI)! : currentUser;
 
     const handleVote = (playerId: string, theme: string) => {
-        if (votes[playerId]) return; // Already voted
+        if (votes[playerId] || playerId !== humanPlayer.id) return;
         setVotes(prev => ({ ...prev, [playerId]: theme }));
-    };
-
-    // AI Voting Logic
-    useEffect(() => {
-        if(aiPlayer && !votes[aiPlayer.id]){
-            const randomTheme = themes[Math.floor(Math.random() * themes.length)];
-            const timeout = setTimeout(() => {
-                handleVote(aiPlayer.id, randomTheme);
-            }, 1500); // AI votes after 1.5s
-            return () => clearTimeout(timeout);
+        if(!isPvc) {
+          // p2pService.sendMessage({ type: 'VOTE', payload: { theme }});
         }
-    }, [aiPlayer, votes, themes]);
+    };
+    
+    // AI or Host logic for voting
+    useEffect(() => {
+        if (isPvc) {
+            const aiPlayer = players.find(p => p.isAI)!;
+            if (!votes[aiPlayer.id]) {
+                const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+                setTimeout(() => setVotes(prev => ({ ...prev, [aiPlayer.id]: randomTheme })), 1500);
+            }
+        }
+    }, [isPvc, players, votes, themes]);
 
     useEffect(() => {
         if (Object.keys(votes).length === 2) {
-            // Both players voted, determine winner
             const vote1 = votes[player1.id];
             const vote2 = votes[player2.id];
-
-            let winningTheme: string;
-            if (vote1 === vote2) {
-                winningTheme = vote1;
-            } else {
-                // Tie, randomly pick one of the two votes
-                winningTheme = Math.random() < 0.5 ? vote1 : vote2;
-            }
-
-            setTimeout(() => {
-                onThemeSelected(winningTheme);
-            }, 2000); // Wait a bit to show result
+            const winningTheme = vote1 === vote2 ? vote1 : (Math.random() < 0.5 ? vote1 : vote2);
+            setTimeout(() => onThemeSelected(winningTheme), 2000);
         }
     }, [votes, onThemeSelected, player1.id, player2.id]);
     
     const allVoted = Object.keys(votes).length === 2;
-    const humanPlayer = players.find(p => !p.isAI)!;
-
-    const renderPlayerVoteStatus = (player: Player) => {
-        const vote = votes[player.id];
-        if (vote) {
-            return <p className="text-green-500 font-semibold mt-2">Voted!</p>
-        }
-        return <p className="text-gray-400 font-semibold mt-2 animate-pulse">Voting...</p>
-    };
+    const renderPlayerVoteStatus = (player: Player) => (votes[player.id] ? <p className="text-success fw-semibold mt-2">Voted!</p> : <p className="text-body-secondary fw-semibold mt-2">Voting...</p>);
 
     return (
-        <div className="panel w-full max-w-4xl text-center p-8 md:p-12 flex flex-col items-center">
-            <h2 className="text-3xl mb-2 text-glow-cyan" style={{color: 'var(--color-cyan)'}}>Rematch: Vote for the Next Theme!</h2>
-            <p className="text-gray-400 mb-8">The next battleground will be decided by your votes.</p>
+        <div className="card bg-dark text-light w-100" style={{maxWidth: '900px'}}>
+            <div className="card-body text-center p-4 p-md-5">
+                <h2 className="card-title h1 mb-2 text-info text-glow-cyan">Rematch: Vote for the Next Theme!</h2>
+                <p className="text-body-secondary mb-4">The next battleground will be decided by your votes.</p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mb-8">
-                {themes.map(theme => {
-                    const player1VotedThis = votes[player1.id] === theme;
-                    const player2VotedThis = votes[player2.id] === theme;
-                    
-                    return (
-                        <div key={theme} className="relative p-4 border-2 border-gray-700 rounded-xl transition-all duration-300 flex flex-col items-center justify-center min-h-[150px] bg-black/20">
-                            <h3 className="text-xl font-bold text-gray-200 mb-4 text-center">{theme}</h3>
-                            {!allVoted && !aiPlayer && (
-                                <div className="flex flex-wrap gap-2 justify-center">
-                                    <button 
-                                        onClick={() => handleVote(player1.id, theme)} 
-                                        disabled={!!votes[player1.id]}
-                                        className="btn btn-secondary px-3 py-1 text-sm"
-                                    >
-                                        Vote {player1.name.split(' ')[0]}
+                <div className="row g-3 mb-4">
+                    {themes.map(theme => (
+                        <div key={theme} className="col-md-4">
+                            <div className="card card-body bg-dark h-100 position-relative p-3">
+                                <h3 className="h5 text-light mb-3">{theme}</h3>
+                                {!allVoted && (
+                                    <button onClick={() => handleVote(humanPlayer.id, theme)} disabled={!!votes[humanPlayer.id]} className="btn btn-sm btn-outline-info">
+                                        Vote
                                     </button>
-                                     <button 
-                                        onClick={() => handleVote(player2.id, theme)} 
-                                        disabled={!!votes[player2.id]}
-                                        className="btn btn-secondary px-3 py-1 text-sm"
-                                    >
-                                        Vote {player2.name.split(' ')[0]}
-                                    </button>
+                                )}
+                                <div className="position-absolute top-0 start-0 m-2 d-flex gap-1">
+                                    {votes[player1.id] === theme && <UserAvatar avatarKey={player1.avatar} className="rounded-circle border border-2 border-primary" style={{ width: '32px', height: '32px' }} />}
                                 </div>
-                            )}
-                             {!allVoted && aiPlayer && (
-                                <div className="flex flex-wrap gap-2 justify-center">
-                                    <button 
-                                        onClick={() => handleVote(humanPlayer.id, theme)} 
-                                        disabled={!!votes[humanPlayer.id]}
-                                        className="btn btn-secondary px-3 py-1 text-sm"
-                                    >
-                                        Vote as {humanPlayer.name.split(' ')[0]}
-                                    </button>
+                                <div className="position-absolute top-0 end-0 m-2 d-flex gap-1">
+                                    {votes[player2.id] === theme && <UserAvatar avatarKey={player2.avatar} className="rounded-circle border border-2 border-danger" style={{ width: '32px', height: '32px' }} />}
                                 </div>
-                            )}
-                            <div className="absolute top-2 left-2 flex gap-1">
-                                {player1VotedThis && <span title={player1.name}><UserAvatar avatarKey={player1.avatar} className="w-8 h-8 rounded-full ring-2 ring-blue-500" /></span>}
-                            </div>
-                             <div className="absolute top-2 right-2 flex gap-1">
-                                {player2VotedThis && <span title={player2.name}><UserAvatar avatarKey={player2.avatar} className="w-8 h-8 rounded-full ring-2 ring-red-500" /></span>}
                             </div>
                         </div>
-                    );
-                })}
-            </div>
-
-            <div className="flex items-center justify-around w-full max-w-lg">
-                <div className="flex flex-col items-center gap-2">
-                    <UserAvatar avatarKey={player1.avatar} className="w-20 h-20 rounded-lg" />
-                    <span className="font-bold text-gray-200">{player1.name}</span>
-                    {renderPlayerVoteStatus(player1)}
+                    ))}
                 </div>
-                <span className="text-3xl font-bold text-gray-500 glitch">VS</span>
-                <div className="flex flex-col items-center gap-2">
-                    <UserAvatar avatarKey={player2.avatar} className="w-20 h-20 rounded-lg" />
-                    <span className="font-bold text-gray-200">{player2.name}</span>
-                    {renderPlayerVoteStatus(player2)}
-                </div>
-            </div>
 
-            {allVoted && (
-                <p className="mt-8 text-xl font-bold text-purple-500 animate-pulse text-glow-purple">Tallying votes... preparing the next battlefield!</p>
-            )}
+                <div className="row align-items-center justify-content-center">
+                    <div className="col-5 d-flex flex-column align-items-center gap-2">
+                        <UserAvatar avatarKey={player1.avatar} className="rounded" style={{width: '80px', height: '80px'}} />
+                        <span className="fw-bold">{player1.name}</span>
+                        {renderPlayerVoteStatus(player1)}
+                    </div>
+                    <div className="col-2 text-center"><span className="h2 fw-bold text-secondary">VS</span></div>
+                    <div className="col-5 d-flex flex-column align-items-center gap-2">
+                        <UserAvatar avatarKey={player2.avatar} className="rounded" style={{width: '80px', height: '80px'}} />
+                        <span className="fw-bold">{player2.name}</span>
+                        {renderPlayerVoteStatus(player2)}
+                    </div>
+                </div>
+
+                {allVoted && <p className="mt-4 h5 text-purple-500 animate-pulse text-glow-purple">Tallying votes... preparing the next battlefield!</p>}
+            </div>
         </div>
     );
 };
