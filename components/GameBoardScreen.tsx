@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Player, GridData, ChatMessage, WordLocation } from '../types';
+import { Player, GridData, ChatMessage, WordLocation, ChatEventType } from '../types';
 import { TURN_DURATION, BONUS_TIME_THRESHOLD, BONUS_TIME_AWARD } from '../constants';
+import * as aiService from '../services/aiService';
 import PlayerInfo from './common/PlayerInfo';
 import Timer from './common/Timer';
 import WordGrid from './common/WordGrid';
@@ -30,9 +31,34 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initi
   const [isTurnActive, setIsTurnActive] = useState(true);
   const [turnResult, setTurnResult] = useState<'success' | 'fail' | null>(null);
   const [isSpectatorView, setIsSpectatorView] = useState(false);
+  const [aiCanChat, setAiCanChat] = useState(true);
 
   const currentPlayer = players[currentPlayerIndex];
   const isSpectatorOrAI = isSpectatorView || (currentPlayer && currentPlayer.isAI);
+  const isPvcGame = players.some(p => p.isAI);
+  
+  const triggerAiChat = useCallback(async (eventType: ChatEventType, playersOverride?: Player[]) => {
+    const currentPlayers = playersOverride || players;
+    const aiPlayer = currentPlayers.find(p => p.isAI);
+    const humanPlayer = currentPlayers.find(p => !p.isAI);
+
+    if (!isPvcGame || !aiPlayer || !humanPlayer || !aiCanChat) return;
+    
+    setAiCanChat(false);
+    setTimeout(() => setAiCanChat(true), 4000 + Math.random() * 3000); // Cooldown of 4-7s
+
+    const message = await aiService.generateAiChatMessage(aiPlayer, humanPlayer, eventType);
+    if (message) {
+        onSendMessage(message, aiPlayer);
+    }
+  }, [players, onSendMessage, aiCanChat, isPvcGame]);
+
+  // AI Chat: Game Start
+  useEffect(() => {
+    const timer = setTimeout(() => triggerAiChat(ChatEventType.GameStart), 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only on mount
 
   const advanceTurn = useCallback((currentPlayers: Player[], currentGridData: GridData, nextPlayerIdx: number) => {
     setIsTurnActive(false);
@@ -87,6 +113,10 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initi
           setTurnResult('fail');
 
           if (turnType === 'normal') {
+             // AI Chat: Player failed, AI gets a steal.
+            if (players[(currentPlayerIndex + 1) % 2]?.isAI) {
+              triggerAiChat(ChatEventType.AiStealTurn);
+            }
             // Normal turn failed, opponent gets a steal attempt
             setTimeout(() => {
               setCurrentPlayerIndex(p => (p + 1) % 2);
@@ -107,7 +137,7 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initi
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isTurnActive, turnType, wordToFind, players, gridData, advanceTurn, currentPlayerIndex, currentPlayer]);
+  }, [isTurnActive, turnType, wordToFind, players, gridData, advanceTurn, currentPlayerIndex, currentPlayer, triggerAiChat]);
 
   const handleWordSelected = useCallback((word: string) => {
     if (!isTurnActive || word.toUpperCase() !== wordToFind?.text.toUpperCase()) return;
@@ -134,6 +164,14 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initi
         }
         return p;
     });
+
+    // AI Chat: Word Found
+    if (currentPlayer.isAI) {
+      triggerAiChat(ChatEventType.AiFoundWord, updatedPlayers);
+    } else {
+      triggerAiChat(ChatEventType.PlayerFoundWord, updatedPlayers);
+    }
+    
     setPlayers(updatedPlayers);
     
     const updatedGridData = {
@@ -144,7 +182,7 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initi
     
     advanceTurn(updatedPlayers, updatedGridData, (currentPlayerIndex + 1) % 2);
 
-  }, [isTurnActive, wordToFind, turnType, currentPlayer, players, gridData, timeLeft, advanceTurn, onGameOver, currentPlayerIndex]);
+  }, [isTurnActive, wordToFind, turnType, currentPlayer, players, gridData, timeLeft, advanceTurn, onGameOver, currentPlayerIndex, triggerAiChat]);
 
   // AI Turn Logic
   useEffect(() => {

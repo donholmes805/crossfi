@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, Room } from '../types';
 import * as roomService from '../services/roomService';
@@ -43,14 +44,14 @@ const GameRoomsScreen: React.FC<GameRoomsScreenProps> = ({ onNewGame, onJoinRoom
       
       <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 mb-6">
         {isLoading ? (
-          <p className="text-gray-400">Searching for rooms...</p>
+          <p className="text-gray-400 animate-pulse">Searching for rooms...</p>
         ) : rooms.length > 0 ? (
           rooms.map(room => {
             const isWaiting = room.status === 'waiting';
             const canJoin = isWaiting && room.host.id !== currentUser.id;
             
             return (
-              <div key={room.id} className={`bg-gray-800/60 p-4 rounded-xl flex items-center gap-4 border-2 border-gray-700 transition-all ${!isWaiting ? 'opacity-70' : ''}`}>
+              <div key={room.id} className={`bg-gray-800/60 p-4 rounded-xl flex items-center gap-4 border-2 transition-all ${isWaiting ? 'border-gray-700' : 'border-gray-700/50 opacity-70'}`}>
                 <UserAvatar avatarKey={room.host.avatar} className="w-14 h-14 rounded-lg flex-shrink-0" />
                 <div className="flex-grow text-left overflow-hidden">
                   <p className="font-bold text-lg text-gray-200 truncate">{room.host.name}'s Game</p>
@@ -66,8 +67,11 @@ const GameRoomsScreen: React.FC<GameRoomsScreenProps> = ({ onNewGame, onJoinRoom
                         Join
                     </button>
                 ) : (
-                    <span className="px-6 py-2 bg-gray-600 text-white font-semibold rounded-lg flex-shrink-0 cursor-default">
-                        {isWaiting ? 'Your Room' : 'In Progress'}
+                    <span
+                      className={`px-4 py-2 text-sm font-semibold rounded-lg flex-shrink-0 cursor-default
+                        ${!isWaiting ? 'bg-yellow-800/50 text-yellow-300 border border-yellow-700/50' : 'bg-gray-600/50 text-gray-300 border border-gray-500/50'}`}
+                    >
+                      {isWaiting ? 'Your Room' : 'In Progress'}
                     </span>
                 )}
               </div>

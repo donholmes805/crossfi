@@ -40,7 +40,7 @@ export interface Room {
 
 // Represents a registered user with persistent stats
 export interface User {
-  id: string;
+  id:string;
   name: string;
   avatar: string; // The key for the avatar component
   wins: number;
@@ -79,4 +79,11 @@ export interface WordLocation {
 export interface GridData {
     grid: GridCell[][];
     words: WordLocation[];
+}
+
+export enum ChatEventType {
+    GameStart = 'GAME_START',
+    PlayerFoundWord = 'PLAYER_FOUND_WORD',
+    AiFoundWord = 'AI_FOUND_WORD',
+    AiStealTurn = 'AI_STEAL_TURN',
 }
