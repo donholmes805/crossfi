@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Player } from '../types';
 import UserAvatar from './icons/UserAvatar';
 import CoinIcon from './icons/CoinIcon';
-import { p2pService } from '../services/p2pService';
+import { p2pService, P2PMessage } from '../services/p2pService';
 
 interface CoinFlipScreenProps {
   players: Player[];
@@ -19,24 +20,48 @@ const CoinFlipScreen: React.FC<CoinFlipScreenProps> = ({ players, onFlipComplete
   const isHost = p2pService.isHost;
 
   useEffect(() => {
-    if (result && winnerIndex === null) {
-      const winner = player1Call === result ? 0 : 1;
-      setWinnerIndex(winner);
-      
-      setTimeout(() => onFlipComplete(winner), 3000);
-    }
-  }, [result, player1Call, onFlipComplete, winnerIndex]);
+    const handleData = (data: P2PMessage) => {
+        if (data.type === 'COIN_FLIP_RESULT') {
+            setPlayer1Call(data.payload.player1Call);
+            setIsFlipping(true);
+
+            // Simulate the flip animation duration
+            setTimeout(() => {
+                setResult(data.payload.result);
+                setWinnerIndex(data.payload.winnerIndex);
+                setIsFlipping(false);
+
+                // After displaying the result, only the host proceeds
+                if (isHost) {
+                   setTimeout(() => {
+                       onFlipComplete(data.payload.winnerIndex);
+                   }, 3000); // Wait 3s to show the winner
+                }
+            }, 2500); // Animation duration
+        }
+    };
+    
+    const unsubscribe = p2pService.on('data-received', handleData);
+    return () => unsubscribe();
+  }, [isHost, onFlipComplete]);
+
 
   const handleFlip = (call: 'Heads' | 'Tails') => {
+    // Only the host can initiate the flip
     if (isFlipping || !isHost) return;
-    setPlayer1Call(call);
-    setIsFlipping(true);
 
-    setTimeout(() => {
-      const flipResult = Math.random() < 0.5 ? 'Heads' : 'Tails';
-      setResult(flipResult);
-      setIsFlipping(false);
-    }, 2500);
+    // The host determines the outcome and broadcasts it
+    const flipResult = Math.random() < 0.5 ? 'Heads' : 'Tails';
+    const winner = call === flipResult ? 0 : 1;
+
+    p2pService.sendMessage({
+      type: 'COIN_FLIP_RESULT',
+      payload: {
+        result: flipResult,
+        winnerIndex: winner,
+        player1Call: call,
+      }
+    });
   };
   
   return (

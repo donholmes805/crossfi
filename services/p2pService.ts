@@ -45,7 +45,7 @@ export type P2PMessage =
   | { type: 'ACTION_FORFEIT' }
   | { type: 'REMATCH_REQUEST' }
   | { type: 'REMATCH_ACCEPTED'; payload: { theme: string } }
-  | { type: 'FLIP_COMPLETE'; payload: { firstPlayerIndex: number } };
+  | { type: 'COIN_FLIP_RESULT'; payload: { result: 'Heads' | 'Tails'; winnerIndex: number; player1Call: 'Heads' | 'Tails' } };
 
 type P2PServiceEvents = {
     'peer-id-generated': (id: string) => void;

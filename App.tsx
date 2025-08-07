@@ -108,9 +108,6 @@ const App: React.FC = () => {
         case 'REMATCH_ACCEPTED':
             handleThemeSelected(data.payload.theme);
             break;
-        case 'FLIP_COMPLETE':
-            handleFlipComplete(data.payload.firstPlayerIndex);
-            break;
     }
   }, [players, currentUser]);
   
@@ -182,7 +179,8 @@ const App: React.FC = () => {
   }, []);
   
   const startNewGame = useCallback(async (fpIndex: number, theme?: string) => {
-    if (!gameMode) return;
+    if (!gameMode || (gameMode === GameMode.PlayerVsPlayer && !p2pService.isHost)) return;
+
     setIsLoading(true);
     setError(null);
 
@@ -222,9 +220,8 @@ const App: React.FC = () => {
 
   const handleFlipComplete = useCallback(async (fpIndex: number) => {
     if (p2pService.isHost) {
-      p2pService.sendMessage({ type: 'FLIP_COMPLETE', payload: { firstPlayerIndex: fpIndex } });
+      await startNewGame(fpIndex);
     }
-    await startNewGame(fpIndex);
   }, [startNewGame]);
 
   const handleGameOver = useCallback((winningPlayer: Player, finalPlayersState: Player[]) => {
@@ -274,12 +271,14 @@ const App: React.FC = () => {
   }, [rematchRequests, players]);
 
   const handleThemeSelected = useCallback(async (theme: string) => {
-    if (p2pService.isHost) {
+    // For PvC, or for PvP when the user is the host, start the game directly.
+    if (gameMode === GameMode.PlayerVsComputer || p2pService.isHost) {
         const nextFirstPlayerIndex = gameMode === GameMode.PlayerVsComputer ? 0 : (firstPlayerIndex + 1) % 2;
         await startNewGame(nextFirstPlayerIndex, theme);
     } else {
+        // For PvP guests, send a message to the host to start the game.
         p2pService.sendMessage({ type: 'REMATCH_ACCEPTED', payload: { theme } });
-        // Guest just waits for host to start the new game
+        // Guest just waits for host to start the new new game
     }
   }, [firstPlayerIndex, startNewGame, gameMode]);
 
