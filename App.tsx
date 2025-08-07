@@ -287,6 +287,7 @@ const App: React.FC = () => {
             chatMessages={messages}
             onSendMessage={handleSendMessage}
             wordsToWin={wordsToWin}
+            currentUser={currentUser}
           />
         );
       case GameState.WinnerCelebration:
@@ -308,8 +309,8 @@ const App: React.FC = () => {
 
   if (isAuthLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <p className="text-xl text-gray-400 animate-pulse">Loading Game...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-xl animate-pulse" style={{fontFamily: 'var(--font-display)'}}>Loading Game...</p>
       </div>
     );
   }
@@ -330,11 +331,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-4 pt-8 relative">
+    <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 md:p-8 relative">
         <ProfileWidget currentUser={currentUser} onLogout={handleLogout} onNavigate={handleNavigate} />
         <header className="w-full max-w-5xl mx-auto text-center mb-8 flex flex-col items-center">
-            <Logo className="w-full max-w-lg h-auto" />
-            <p className="mt-4 text-lg text-gray-400">An AI-Powered 1v1 Crossword Battle</p>
+            <Logo className="w-full max-w-lg h-auto text-glow-cyan" style={{filter: 'drop-shadow(0 0 10px var(--color-cyan))'}}/>
+            <h1 className="mt-2 text-lg text-glow-cyan" style={{color: 'var(--color-cyan)'}}>An AI-Powered 1v1 Crossword Battle</h1>
         </header>
         <main className="w-full flex-grow flex items-center justify-center">
             <div key={gameState} className="w-full animate-fade-in flex justify-center">

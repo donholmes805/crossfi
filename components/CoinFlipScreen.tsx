@@ -45,8 +45,8 @@ const CoinFlipScreen: React.FC<CoinFlipScreenProps> = ({ players, onFlipComplete
   const [player1, player2] = players;
 
   return (
-    <div className="w-full max-w-2xl text-center bg-gray-900/70 backdrop-blur-sm p-8 md:p-12 rounded-2xl shadow-2xl border border-gray-700 flex flex-col items-center">
-        <h2 className="text-3xl font-bold mb-4 text-gray-100">The Coin Flip</h2>
+    <div className="panel w-full max-w-2xl text-center p-8 md:p-12 flex flex-col items-center">
+        <h2 className="text-3xl mb-4 text-gray-100 text-glow-cyan">The Coin Flip</h2>
         {!result ? (
             <>
                 <p className="text-gray-400 mb-8">{player1.name}, make your call to decide who goes first.</p>
@@ -55,7 +55,7 @@ const CoinFlipScreen: React.FC<CoinFlipScreenProps> = ({ players, onFlipComplete
                         <UserAvatar avatarKey={player1.avatar} className="w-24 h-24 rounded-lg" />
                         <span className="font-bold text-gray-200">{player1.name}</span>
                     </div>
-                    <span className="text-3xl font-bold text-gray-500">VS</span>
+                    <span className="text-3xl font-bold text-gray-500 glitch">VS</span>
                     <div className="flex flex-col items-center gap-2">
                         <UserAvatar avatarKey={player2.avatar} className="w-24 h-24 rounded-lg" />
                         <span className="font-bold text-gray-200">{player2.name}</span>
@@ -66,14 +66,14 @@ const CoinFlipScreen: React.FC<CoinFlipScreenProps> = ({ players, onFlipComplete
                     <button 
                         onClick={() => handleFlip('Heads')} 
                         disabled={isFlipping}
-                        className="px-8 py-3 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                        className="btn btn-secondary"
                     >
                         Heads
                     </button>
                     <button 
                         onClick={() => handleFlip('Tails')}
                         disabled={isFlipping}
-                        className="px-8 py-3 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                        className="btn btn-secondary"
                     >
                         Tails
                     </button>

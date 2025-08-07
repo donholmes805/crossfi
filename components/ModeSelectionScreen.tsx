@@ -17,29 +17,29 @@ const ModeSelectionScreen: React.FC<ModeSelectionScreenProps> = ({ onModeSelecte
   };
 
   return (
-    <div className="w-full max-w-2xl text-center bg-gray-900/70 backdrop-blur-sm p-8 rounded-2xl shadow-2xl border border-gray-700">
-      <h2 className="text-3xl font-bold mb-6 text-gray-100">Choose Your Battle</h2>
+    <div className="panel w-full max-w-2xl text-center p-8">
+      <h2 className="text-3xl mb-6 text-gray-100 text-glow-cyan">Choose Your Battle</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <button
           onClick={() => setSelectedMode(GameMode.PlayerVsPlayer)}
-          className={`p-6 rounded-lg border-2 transition-all duration-300 ${selectedMode === GameMode.PlayerVsPlayer ? 'bg-blue-900/50 border-blue-500' : 'bg-gray-800/50 border-gray-700 hover:border-blue-600'}`}
+          className={`p-6 rounded-lg border-2 transition-all duration-300 transform hover:-translate-y-1 ${selectedMode === GameMode.PlayerVsPlayer ? 'bg-blue-900/50 border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-black/20 border-gray-700 hover:border-blue-600'}`}
         >
-          <h3 className="text-2xl font-bold text-blue-400">Player vs Player</h3>
-          <p className="text-gray-400 mt-2">Challenge another human combatant in a duel of wits.</p>
+          <h3 className="text-2xl text-glow-blue" style={{color: 'var(--color-blue)'}}>Player vs Player</h3>
+          <p className="text-gray-400 mt-2 text-sm">Challenge another human combatant in a duel of wits.</p>
         </button>
         <button
           onClick={() => setSelectedMode(GameMode.PlayerVsComputer)}
-          className={`p-6 rounded-lg border-2 transition-all duration-300 ${selectedMode === GameMode.PlayerVsComputer ? 'bg-purple-900/50 border-purple-500' : 'bg-gray-800/50 border-gray-700 hover:border-purple-600'}`}
+          className={`p-6 rounded-lg border-2 transition-all duration-300 transform hover:-translate-y-1 ${selectedMode === GameMode.PlayerVsComputer ? 'bg-purple-900/50 border-purple-500 shadow-lg shadow-purple-500/20' : 'bg-black/20 border-gray-700 hover:border-purple-600'}`}
         >
-          <h3 className="text-2xl font-bold text-purple-400">Player vs Computer</h3>
-          <p className="text-gray-400 mt-2">Hone your skills against an AI-controlled opponent.</p>
+          <h3 className="text-2xl text-glow-purple" style={{color: 'var(--color-purple)'}}>Player vs AI</h3>
+          <p className="text-gray-400 mt-2 text-sm">Hone your skills against an AI-controlled opponent.</p>
         </button>
       </div>
 
       {selectedMode === GameMode.PlayerVsComputer && (
-        <div className="mb-8 p-6 bg-gray-800/50 rounded-lg border border-gray-700 animate-fade-in">
-          <h3 className="text-xl font-bold mb-4 text-gray-200">Select Difficulty</h3>
+        <div className="mb-8 p-6 bg-black/20 rounded-lg border border-gray-700 animate-fade-in">
+          <h3 className="text-xl mb-4 text-gray-200">Select Difficulty</h3>
           <div className="flex justify-center gap-4">
             {(Object.values(Difficulty) as Difficulty[]).map(d => (
               <button
@@ -57,14 +57,14 @@ const ModeSelectionScreen: React.FC<ModeSelectionScreenProps> = ({ onModeSelecte
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
         <button
           onClick={onBack}
-          className="px-8 py-4 bg-gray-700 text-white font-bold rounded-lg hover:bg-gray-600 transition-all duration-300"
+          className="btn btn-secondary"
         >
-          Back to Menu
+          Back
         </button>
         <button
           onClick={handleContinue}
           disabled={selectedMode === null}
-          className="w-full max-w-sm px-8 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold rounded-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+          className="btn btn-primary w-full max-w-sm"
         >
           Continue
         </button>

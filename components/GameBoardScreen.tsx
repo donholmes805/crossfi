@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Player, GridData, ChatMessage, WordLocation, ChatEventType } from '../types';
+import { Player, GridData, ChatMessage, WordLocation, ChatEventType, User } from '../types';
 import { TURN_DURATION, BONUS_TIME_THRESHOLD, BONUS_TIME_AWARD } from '../constants';
 import * as aiService from '../services/aiService';
 import PlayerInfo from './common/PlayerInfo';
@@ -17,11 +17,12 @@ interface GameBoardScreenProps {
   onGameOver: (winner: Player, finalPlayers: Player[]) => void;
   onSendMessage: (message: string, user: Player) => void;
   wordsToWin: number;
+  currentUser: User;
 }
 
 type TurnType = 'normal' | 'steal';
 
-const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initialGridData, firstPlayerIndex, chatMessages, onGameOver, onSendMessage, wordsToWin }) => {
+const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initialGridData, firstPlayerIndex, chatMessages, onGameOver, onSendMessage, wordsToWin, currentUser }) => {
   const [players, setPlayers] = useState<Player[]>(initialPlayers);
   const [gridData, setGridData] = useState<GridData>(initialGridData);
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(firstPlayerIndex);
@@ -211,15 +212,24 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initi
     }
   }, [currentPlayer, isTurnActive]);
 
+  const handleForfeit = useCallback(() => {
+    if (window.confirm('Are you sure you want to forfeit? This will count as a loss.')) {
+      const winner = players.find(p => p.id !== currentUser.id);
+      if (winner) {
+        onGameOver(winner, players);
+      }
+    }
+  }, [currentUser.id, players, onGameOver]);
+
   const getTurnMessage = () => {
       if(turnType === 'steal') {
-          return <span className="text-red-500 animate-pulse">STEAL ATTEMPT!</span>
+          return <span className="text-red-500 animate-pulse text-glow-red">STEAL ATTEMPT!</span>
       }
       return <span className="text-gray-400">Find this word:</span>
   }
 
   return (
-    <div className="relative w-full max-w-7xl mx-auto p-4 md:p-6 bg-gray-900/70 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-700">
+    <div className="panel relative w-full max-w-7xl mx-auto p-4 md:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-3">
               <PlayerInfo player={players[0]} isCurrent={currentPlayer.id === players[0].id} gridData={gridData} wordsToWin={wordsToWin} />
@@ -229,7 +239,7 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initi
                 <Timer timeLeft={timeLeft} turnDuration={TURN_DURATION} />
                 <div className="my-4 text-center relative w-full">
                     <p className="text-lg font-semibold">{getTurnMessage()}</p>
-                    <p className="text-3xl font-bold tracking-widest text-blue-400">{wordToFind?.text || 'GAME OVER'}</p>
+                    <p className="text-3xl font-bold tracking-widest text-glow-cyan" style={{color: 'var(--color-cyan)'}}>{wordToFind?.text || 'GAME OVER'}</p>
                     <button onClick={() => setIsSpectatorView(!isSpectatorView)} className="absolute top-0 right-0 p-2 text-gray-400 hover:text-white transition-colors" title="Toggle Spectator View">
                       {isSpectatorView ? <EyeSlashIcon className="w-6 h-6"/> : <EyeIcon className="w-6 h-6"/>}
                     </button>
@@ -243,15 +253,26 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = ({ initialPlayers, initi
                   isTurnActive={!isSpectatorOrAI && isTurnActive}
                 />
 
-                {!isSpectatorOrAI && isTurnActive && turnType === 'normal' && (
-                  <button 
-                    onClick={handleUseBonusTime} 
-                    disabled={currentPlayer.bonusTime < BONUS_TIME_AWARD}
-                    className="mt-4 px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 disabled:bg-gray-500 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Use Bonus (+{BONUS_TIME_AWARD}s)
-                  </button>
-                )}
+                <div className="mt-4 flex gap-4 justify-center items-center">
+                    {!isSpectatorOrAI && isTurnActive && turnType === 'normal' && (
+                      <button 
+                        onClick={handleUseBonusTime} 
+                        disabled={currentPlayer.bonusTime < BONUS_TIME_AWARD}
+                        className="btn btn-secondary"
+                      >
+                        Use Bonus (+{BONUS_TIME_AWARD}s)
+                      </button>
+                    )}
+                    {players.some(p => p.id === currentUser.id) && !isSpectatorView && (
+                      <button
+                        onClick={handleForfeit}
+                        className="btn btn-danger"
+                      >
+                        Forfeit Match
+                      </button>
+                    )}
+                </div>
+
                 <ChatBox 
                   messages={chatMessages}
                   onSendMessage={(msg) => onSendMessage(msg, currentPlayer)}

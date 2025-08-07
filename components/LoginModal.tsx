@@ -18,24 +18,28 @@ interface CreateViewProps {
 const CreateView: React.FC<CreateViewProps> = ({
   onSubmit, error, name, setName, selectedAvatar, setSelectedAvatar, hasExistingUsers, onBack
 }) => (
-  <form onSubmit={onSubmit}>
-    <h2 className="text-2xl font-bold text-gray-100 mb-4">Create New Profile</h2>
-    {error && <p className="text-red-400 bg-red-900/50 p-2 rounded-md mb-4 text-sm">{error}</p>}
-    <div className="mb-4">
-      <label htmlFor="name-login" className="block text-gray-400 text-sm font-bold mb-2">Player Name</label>
+  <form onSubmit={onSubmit} className="flex flex-col items-center">
+    <h2 className="text-2xl text-cyan-400 text-glow-cyan mb-6">Create New Profile</h2>
+    
+    <UserAvatar avatarKey={selectedAvatar} className="w-32 h-32 rounded-lg mb-4 border-2 border-cyan-500/50" />
+
+    {error && <p className="bg-red-900/50 border border-red-700 text-red-300 p-2 rounded-md mb-4 text-sm w-full text-center">{error}</p>}
+
+    <div className="mb-4 w-full max-w-sm">
+      <label htmlFor="name-login" className="block text-gray-400 text-sm font-bold mb-2 text-left">Player Name</label>
       <input
         type="text"
         id="name-login"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="form-input w-full"
         placeholder="Enter your unique name"
         required
       />
     </div>
-    <div className="mb-6">
-      <p className="block text-gray-400 text-sm font-bold mb-2">Choose Your Avatar</p>
-      <div role="radiogroup" className="grid grid-cols-4 gap-4">
+    <div className="mb-6 w-full max-w-sm">
+      <p className="block text-gray-400 text-sm font-bold mb-2 text-left">Choose Your Avatar</p>
+      <div role="radiogroup" className="grid grid-cols-4 gap-2 bg-black/20 p-2 rounded-md">
         {Object.entries(AVATARS).map(([key, avatarName]) => (
           <button
             key={key}
@@ -43,25 +47,23 @@ const CreateView: React.FC<CreateViewProps> = ({
             role="radio"
             aria-checked={selectedAvatar === key}
             onClick={() => setSelectedAvatar(key)}
-            className={`p-2 rounded-lg transition-all border-2 ${selectedAvatar === key ? 'border-blue-500 ring-2 ring-blue-500' : 'border-gray-700 hover:border-blue-500'}`}
+            className={`p-1 rounded-md transition-all border-2 ${selectedAvatar === key ? 'border-cyan-400 ring-2 ring-cyan-400' : 'border-gray-700 hover:border-cyan-400'}`}
             aria-label={avatarName}
           >
-            <UserAvatar avatarKey={key} className="w-full h-full rounded-md" />
+            <UserAvatar avatarKey={key} className="w-full h-full rounded-sm" />
           </button>
         ))}
       </div>
     </div>
-    <div className="flex items-center">
+    <div className="flex items-center w-full max-w-sm">
       {hasExistingUsers && (
         <button type="button" onClick={onBack} className="text-sm text-blue-400 hover:underline mr-auto">
           &larr; Back to Sign In
         </button>
       )}
-      <div className={`flex justify-end gap-4 ${!hasExistingUsers ? 'w-full' : ''}`}>
-        <button type="submit" className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50" disabled={!name.trim()}>
-          Create & Sign In
-        </button>
-      </div>
+      <button type="submit" className="btn btn-primary ml-auto" disabled={!name.trim()}>
+        Create & Sign In
+      </button>
     </div>
   </form>
 );
@@ -73,14 +75,14 @@ interface SelectViewProps {
 }
 
 const SelectView: React.FC<SelectViewProps> = ({ users, onSelectUser, onCreateNew }) => (
-  <div>
-    <h2 className="text-2xl font-bold text-gray-100 mb-6">Sign In</h2>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[20rem] overflow-y-auto pr-2 mb-6">
+  <div className="flex flex-col items-center">
+    <h2 className="text-2xl text-cyan-400 text-glow-cyan mb-6">Sign In</h2>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[20rem] overflow-y-auto pr-2 mb-6 w-full">
       {users.map(user => (
         <button
           key={user.id}
           onClick={() => onSelectUser(user)}
-          className="p-3 bg-gray-800/80 rounded-lg flex items-center gap-3 w-full text-left border-2 border-gray-700 hover:border-blue-500 hover:bg-gray-700/80 transition-all group"
+          className="panel p-3 flex items-center gap-3 w-full text-left hover:border-blue-500 hover:bg-gray-700/80 transition-all group"
         >
           <UserAvatar avatarKey={user.avatar} className="w-14 h-14 rounded-md flex-shrink-0" />
           <div className="overflow-hidden">
@@ -94,7 +96,7 @@ const SelectView: React.FC<SelectViewProps> = ({ users, onSelectUser, onCreateNe
     </div>
     <div className="border-t border-gray-700 pt-4 flex flex-col items-center gap-4">
       <p className="text-gray-400">Don't have a profile?</p>
-      <button onClick={onCreateNew} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+      <button onClick={onCreateNew} className="btn btn-secondary">
         Create New Profile
       </button>
     </div>
@@ -137,8 +139,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLogin, onClose, initialView }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm" aria-modal="true" role="dialog">
-      <div className="bg-gray-900 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-2xl m-4 animate-fade-in">
+    <div className="modal-backdrop" aria-modal="true" role="dialog">
+      <div className="panel p-8 w-full max-w-2xl m-4 animate-fade-in">
         {view === 'login' ?
           <SelectView
             users={existingUsers}

@@ -170,14 +170,14 @@ const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResul
           } else if (state.isFailed) {
              cellClass += 'animate-shake bg-red-500/80';
           } else if (state.isFound) {
-            cellClass += 'bg-blue-500 text-white ';
+            cellClass += 'bg-blue-600/80 text-white ';
           } else if (state.isSelected) {
             cellClass += 'bg-yellow-400 text-black scale-110 z-10 ';
           } else if (state.isRevealed) {
             cellClass += 'bg-purple-900/70 text-purple-200 ';
           } else {
-            cellClass += 'bg-gray-800/80 text-gray-200 shadow-md ';
-             if (isTurnActive) cellClass += 'hover:bg-gray-700/80 ';
+            cellClass += 'bg-slate-800/80 text-slate-200 shadow-md ';
+             if (isTurnActive) cellClass += 'hover:bg-slate-700/80 ';
           }
           
           if(isTurnActive) cellClass += 'cursor-pointer';

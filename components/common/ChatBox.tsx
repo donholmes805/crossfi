@@ -27,7 +27,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ messages, onSendMessage, isLocked, cu
   };
 
   return (
-    <div className="bg-gray-900/50 rounded-lg p-4 flex flex-col h-full w-full mt-4 min-h-[300px] max-h-[400px] border border-gray-700">
+    <div className="panel p-4 flex flex-col h-full w-full mt-4 min-h-[300px] max-h-[400px]">
       <h3 className="text-lg font-bold text-gray-200 mb-2 border-b border-gray-700 pb-2">Game Chat</h3>
       <div className="flex-grow overflow-y-auto pr-2 space-y-3">
         {messages.map((msg, index) => (
@@ -50,13 +50,13 @@ const ChatBox: React.FC<ChatBoxProps> = ({ messages, onSendMessage, isLocked, cu
           onChange={(e) => setNewMessage(e.target.value)}
           placeholder={isLocked ? "Wait for your turn to chat..." : "Type a message..."}
           disabled={isLocked}
-          className="flex-grow bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          className="form-input flex-grow"
           aria-label="Chat message input"
         />
         <button
           type="submit"
           disabled={isLocked || !newMessage.trim()}
-          className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-500 disabled:text-gray-300 transition-colors"
+          className="btn btn-primary"
         >
           Send
         </button>

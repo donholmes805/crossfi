@@ -17,15 +17,15 @@ const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ onBack }) => {
   }, []);
 
   const getRankColor = (rank: number) => {
-    if (rank === 0) return 'text-yellow-400';
+    if (rank === 0) return 'text-yellow-400 text-glow-yellow';
     if (rank === 1) return 'text-gray-300';
     if (rank === 2) return 'text-yellow-600';
     return 'text-gray-400';
   };
 
   return (
-    <div className="w-full max-w-3xl text-center bg-gray-900/70 backdrop-blur-sm p-6 md:p-8 rounded-2xl shadow-2xl border border-gray-700">
-      <h2 className="text-3xl font-bold mb-6 text-gray-100 flex items-center justify-center gap-3">
+    <div className="panel w-full max-w-3xl text-center p-6 md:p-8">
+      <h2 className="text-3xl mb-6 text-gray-100 flex items-center justify-center gap-3 text-glow-cyan">
         <TrophyIcon className="w-8 h-8 text-yellow-400" />
         Leaderboard
       </h2>
@@ -34,7 +34,7 @@ const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ onBack }) => {
           users.map((user, index) => (
             <div
               key={user.id}
-              className="flex items-center gap-4 bg-gray-800/50 p-3 rounded-lg border border-gray-700"
+              className="flex items-center gap-4 bg-black/20 p-3 rounded-lg border border-gray-700/50"
             >
               <div className={`w-10 text-xl font-bold text-center flex-shrink-0 ${getRankColor(index)}`}>
                 {index + 1}
@@ -59,7 +59,7 @@ const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ onBack }) => {
       <div className="mt-8">
         <button
           onClick={onBack}
-          className="px-8 py-3 bg-gray-700 text-white font-bold rounded-lg hover:bg-gray-600 focus:outline-none transition-all duration-300"
+          className="btn btn-secondary"
         >
           Back
         </button>

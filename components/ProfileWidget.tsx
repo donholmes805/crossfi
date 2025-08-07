@@ -31,7 +31,7 @@ const ProfileWidget: React.FC<ProfileWidgetProps> = ({ currentUser, onLogout, on
     <div ref={wrapperRef} className="absolute top-4 right-4 z-30">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 bg-gray-800/80 p-2 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
+        className="flex items-center gap-2 bg-slate-800/80 p-2 rounded-lg border border-slate-700 hover:bg-slate-700 transition-colors"
       >
         <UserAvatar avatarKey={currentUser.avatar} className="w-10 h-10 rounded-md" />
         <span className="hidden sm:inline font-semibold text-gray-200">{currentUser.name}</span>
@@ -39,13 +39,13 @@ const ProfileWidget: React.FC<ProfileWidgetProps> = ({ currentUser, onLogout, on
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg py-1 animate-fade-in">
+        <div className="absolute top-full right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg py-1 animate-fade-in">
           <button
             onClick={() => {
               onNavigate(GameState.Profile);
               setIsOpen(false);
             }}
-            className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
+            className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-slate-700"
           >
             View Profile
           </button>
@@ -55,7 +55,7 @@ const ProfileWidget: React.FC<ProfileWidgetProps> = ({ currentUser, onLogout, on
               onLogout();
               setIsOpen(false);
             }}
-            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
+            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-700"
           >
             Sign Out
           </button>

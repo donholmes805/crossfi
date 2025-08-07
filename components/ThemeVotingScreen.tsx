@@ -73,8 +73,8 @@ const ThemeVotingScreen: React.FC<ThemeVotingScreenProps> = ({ players, onThemeS
     };
 
     return (
-        <div className="w-full max-w-4xl text-center bg-gray-900/70 backdrop-blur-sm p-8 md:p-12 rounded-2xl shadow-xl border border-gray-700 flex flex-col items-center">
-            <h2 className="text-3xl font-bold mb-2 text-gray-100">Rematch: Vote for the Next Theme!</h2>
+        <div className="panel w-full max-w-4xl text-center p-8 md:p-12 flex flex-col items-center">
+            <h2 className="text-3xl mb-2 text-glow-cyan" style={{color: 'var(--color-cyan)'}}>Rematch: Vote for the Next Theme!</h2>
             <p className="text-gray-400 mb-8">The next battleground will be decided by your votes.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mb-8">
@@ -83,23 +83,23 @@ const ThemeVotingScreen: React.FC<ThemeVotingScreenProps> = ({ players, onThemeS
                     const player2VotedThis = votes[player2.id] === theme;
                     
                     return (
-                        <div key={theme} className="relative p-4 border-2 border-gray-700 rounded-xl transition-all duration-300 flex flex-col items-center justify-center min-h-[150px] bg-gray-800/50">
+                        <div key={theme} className="relative p-4 border-2 border-gray-700 rounded-xl transition-all duration-300 flex flex-col items-center justify-center min-h-[150px] bg-black/20">
                             <h3 className="text-xl font-bold text-gray-200 mb-4 text-center">{theme}</h3>
                             {!allVoted && !aiPlayer && (
                                 <div className="flex flex-wrap gap-2 justify-center">
                                     <button 
                                         onClick={() => handleVote(player1.id, theme)} 
                                         disabled={!!votes[player1.id]}
-                                        className="px-3 py-1 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                        className="btn btn-secondary px-3 py-1 text-sm"
                                     >
-                                        Vote as {player1.name.split(' ')[0]}
+                                        Vote {player1.name.split(' ')[0]}
                                     </button>
                                      <button 
                                         onClick={() => handleVote(player2.id, theme)} 
                                         disabled={!!votes[player2.id]}
-                                        className="px-3 py-1 text-sm bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50"
+                                        className="btn btn-secondary px-3 py-1 text-sm"
                                     >
-                                        Vote as {player2.name.split(' ')[0]}
+                                        Vote {player2.name.split(' ')[0]}
                                     </button>
                                 </div>
                             )}
@@ -108,7 +108,7 @@ const ThemeVotingScreen: React.FC<ThemeVotingScreenProps> = ({ players, onThemeS
                                     <button 
                                         onClick={() => handleVote(humanPlayer.id, theme)} 
                                         disabled={!!votes[humanPlayer.id]}
-                                        className="px-3 py-1 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                        className="btn btn-secondary px-3 py-1 text-sm"
                                     >
                                         Vote as {humanPlayer.name.split(' ')[0]}
                                     </button>
@@ -131,7 +131,7 @@ const ThemeVotingScreen: React.FC<ThemeVotingScreenProps> = ({ players, onThemeS
                     <span className="font-bold text-gray-200">{player1.name}</span>
                     {renderPlayerVoteStatus(player1)}
                 </div>
-                <span className="text-3xl font-bold text-gray-500">VS</span>
+                <span className="text-3xl font-bold text-gray-500 glitch">VS</span>
                 <div className="flex flex-col items-center gap-2">
                     <UserAvatar avatarKey={player2.avatar} className="w-20 h-20 rounded-lg" />
                     <span className="font-bold text-gray-200">{player2.name}</span>
@@ -140,7 +140,7 @@ const ThemeVotingScreen: React.FC<ThemeVotingScreenProps> = ({ players, onThemeS
             </div>
 
             {allVoted && (
-                <p className="mt-8 text-xl font-bold text-purple-500 animate-pulse">Tallying votes... preparing the next battlefield!</p>
+                <p className="mt-8 text-xl font-bold text-purple-500 animate-pulse text-glow-purple">Tallying votes... preparing the next battlefield!</p>
             )}
         </div>
     );

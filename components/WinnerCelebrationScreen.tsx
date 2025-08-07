@@ -19,11 +19,11 @@ const WinnerCelebrationScreen: React.FC<WinnerCelebrationScreenProps> = ({ winne
   }, [onComplete]);
 
   return (
-    <div className="relative w-full max-w-2xl text-center bg-gray-900/50 backdrop-blur-sm p-8 md:p-12 rounded-2xl shadow-2xl border-2 border-yellow-400 flex flex-col items-center overflow-hidden">
+    <div className="panel relative w-full max-w-2xl text-center p-8 md:p-12 border-2 border-yellow-400 flex flex-col items-center overflow-hidden shadow-lg shadow-yellow-500/30">
       <Confetti />
       <div className="relative z-10 flex flex-col items-center">
         <TrophyIcon className="w-24 h-24 text-yellow-400 mb-4 animate-pulse-urgent" style={{ animationDuration: '2s' }} />
-        <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-500 mb-4">
+        <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-500 mb-4 text-glow-yellow">
           VICTORY!
         </h1>
         <div className="flex flex-col items-center gap-4 bg-black/30 p-6 rounded-xl">

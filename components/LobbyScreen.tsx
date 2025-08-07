@@ -19,9 +19,9 @@ interface LobbyScreenProps {
 const PlayerSpot: React.FC<{ user: User | null; isCurrentUser?: boolean, isHost?: boolean }> = ({ user, isCurrentUser, isHost }) => {
   if (user) {
     return (
-      <div className="bg-gray-800/50 p-6 rounded-2xl w-full flex flex-col items-center text-center border-2 border-gray-700 transition-all duration-300 min-h-[250px] justify-center">
-        {isHost && <p className="text-xs font-bold text-yellow-400 mb-2">[HOST]</p>}
-        <UserAvatar avatarKey={user.avatar} className="w-24 h-24 md:w-32 md:h-32 rounded-xl mb-4" />
+      <div className="bg-black/20 p-6 rounded-lg w-full flex flex-col items-center text-center border-2 border-cyan-500/30 transition-all duration-300 min-h-[280px] justify-center relative shadow-lg shadow-cyan-500/10">
+        {isHost && <p className="text-xs font-bold text-yellow-400 mb-2 absolute top-2 left-2">[HOST]</p>}
+        <UserAvatar avatarKey={user.avatar} className="w-24 h-24 md:w-32 md:h-32 rounded-lg mb-4 border-2 border-gray-700" />
         <h3 className="text-xl md:text-2xl font-bold text-gray-100 truncate w-full" title={user.name}>{user.name}</h3>
         {user.isAI ? 
             <p className="text-sm text-red-400 font-bold">[AI OPPONENT]</p>
@@ -32,8 +32,8 @@ const PlayerSpot: React.FC<{ user: User | null; isCurrentUser?: boolean, isHost?
     );
   }
   return (
-    <div className="group border-2 border-dashed border-gray-600 rounded-2xl w-full flex flex-col items-center justify-center p-6 h-full min-h-[250px] transition-all duration-300">
-       <p className="text-gray-400 text-lg animate-pulse">Waiting for opponent...</p>
+    <div className="group border-2 border-dashed border-gray-600 rounded-lg w-full flex flex-col items-center justify-center p-6 min-h-[280px] transition-all duration-300 bg-black/20">
+       <p className="text-gray-400 text-lg animate-pulse" style={{fontFamily: 'var(--font-display)'}}>Waiting for opponent...</p>
     </div>
   );
 };
@@ -61,24 +61,27 @@ const InviteFriend: React.FC<{ roomId: string | null }> = ({ roomId }) => {
     if (!roomId) return null;
 
     return (
-        <div className="mt-6 w-full max-w-lg mx-auto bg-gray-800/70 p-4 rounded-xl border border-gray-700">
+        <div className="mt-6 w-full max-w-lg mx-auto bg-black/20 p-4 rounded-lg border border-gray-700">
             <p className="text-center font-bold text-gray-200 mb-3">Invite a Friend</p>
             <div className="flex gap-2">
                 <input
                     type="text"
                     readOnly
                     value={inviteLink}
-                    className="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-3 py-2 text-gray-300 font-mono text-sm"
+                    className="w-full form-input"
                     aria-label="Invitation Link"
                 />
                 <button
                     onClick={handleCopyLink}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold rounded-lg hover:from-purple-600 hover:to-indigo-600 focus:outline-none focus:ring-4 focus:ring-purple-300 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn btn-primary flex items-center gap-2 px-4 py-2"
                 >
                     <ClipboardIcon className="w-5 h-5"/>
-                    {copied ? 'Copied!' : 'Copy Link'}
+                    {copied ? 'Copied!' : 'Copy'}
                 </button>
             </div>
+             <p className="text-xs text-gray-500 mt-2 text-center">
+                Note: The invite link only works when opened in a new tab on the <strong className="text-gray-400">same computer</strong>. True online play is not yet supported.
+            </p>
         </div>
     );
 };
@@ -109,11 +112,9 @@ const LobbyScreen: React.FC<LobbyScreenProps> = ({ onReadyToStart, isLoading, er
     
     fetchRoom(); // Initial fetch
     
-    // Subscribe to changes in any room. The fetchRoom function will handle
-    // checking if the current room is the one that changed.
     const unsubscribe = roomService.subscribeToRooms(fetchRoom);
     
-    return () => unsubscribe(); // Unsubscribe on cleanup
+    return () => unsubscribe();
   }, [isPvc, roomId, onBack]);
   
   const handleStart = () => {
@@ -131,13 +132,13 @@ const LobbyScreen: React.FC<LobbyScreenProps> = ({ onReadyToStart, isLoading, er
   }
 
   return (
-    <div className="w-full max-w-4xl text-center bg-gray-900/70 backdrop-blur-sm p-6 md:p-8 rounded-2xl shadow-2xl border border-gray-700">
-        <h2 className="text-3xl font-bold mb-2 text-gray-100">Prepare for Battle</h2>
+    <div className="panel w-full max-w-4xl text-center p-6 md:p-8">
+        <h2 className="text-3xl mb-2 text-gray-100 text-glow-cyan" style={{color: 'var(--color-cyan)'}}>Prepare for Battle</h2>
         <p className="text-gray-400 mb-8">{getLobbyMessage()}</p>
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-4 md:gap-8">
             <PlayerSpot user={player1} isCurrentUser={currentUser?.id === player1?.id} isHost={isHost || isPvc} />
-            <span className="text-4xl font-black text-gray-500 my-4 md:my-0">VS</span>
+            <span className="text-5xl font-black text-gray-500 my-4 md:my-0 glitch">VS</span>
             <PlayerSpot user={player2} isCurrentUser={currentUser?.id === player2?.id} />
         </div>
 
@@ -148,7 +149,7 @@ const LobbyScreen: React.FC<LobbyScreenProps> = ({ onReadyToStart, isLoading, er
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
                 onClick={onBack}
-                className="px-8 py-4 bg-gray-700 text-white font-bold rounded-lg hover:bg-gray-600 transition-all duration-300"
+                className="btn btn-secondary"
             >
                 {isPvc ? 'Back' : isHost ? 'Cancel Room' : 'Leave Seat'}
             </button>
@@ -156,7 +157,7 @@ const LobbyScreen: React.FC<LobbyScreenProps> = ({ onReadyToStart, isLoading, er
                  <button
                     onClick={handleStart}
                     disabled={isLoading || !player1 || !player2}
-                    className="w-full max-w-sm px-8 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold rounded-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+                    className="btn btn-primary w-full max-w-sm"
                 >
                     {isLoading ? 'Loading...' : 'Start War'}
                 </button>

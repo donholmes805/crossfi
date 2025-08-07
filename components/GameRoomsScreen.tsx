@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { User, Room } from '../types';
 import * as roomService from '../services/roomService';
@@ -36,13 +37,13 @@ const GameRoomsScreen: React.FC<GameRoomsScreenProps> = ({ onNewGame, onJoinRoom
   }, []);
 
   return (
-    <div className="w-full max-w-3xl text-center bg-gray-900/70 backdrop-blur-sm p-6 md:p-8 rounded-2xl shadow-2xl border border-gray-700">
-      <h2 className="text-3xl font-bold mb-4 text-gray-100">Game Rooms</h2>
+    <div className="panel w-full max-w-3xl text-center p-6 md:p-8">
+      <h2 className="text-3xl mb-4 text-gray-100 text-glow-cyan">Game Rooms</h2>
       <p className="text-gray-400 mb-6">Join an available room or create your own battle.</p>
 
       {error && <p className="text-red-300 mb-4 bg-red-900/50 p-3 rounded-lg border border-red-700">{error}</p>}
       
-      <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 mb-6">
+      <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 mb-6">
         {isLoading ? (
           <p className="text-gray-400 animate-pulse">Searching for rooms...</p>
         ) : rooms.length > 0 ? (
@@ -50,8 +51,13 @@ const GameRoomsScreen: React.FC<GameRoomsScreenProps> = ({ onNewGame, onJoinRoom
             const isWaiting = room.status === 'waiting';
             const canJoin = isWaiting && room.host.id !== currentUser.id;
             
+            let statusClass = 'border-gray-700';
+            if (canJoin) statusClass = 'border-green-500/50';
+            else if (!isWaiting) statusClass = 'border-yellow-500/50 opacity-60';
+            else if (room.host.id === currentUser.id) statusClass = 'border-blue-500/50';
+
             return (
-              <div key={room.id} className={`bg-gray-800/60 p-4 rounded-xl flex items-center gap-4 border-2 transition-all ${isWaiting ? 'border-gray-700' : 'border-gray-700/50 opacity-70'}`}>
+              <div key={room.id} className={`bg-black/20 p-4 rounded-lg flex items-center gap-4 border-l-4 transition-all ${statusClass}`}>
                 <UserAvatar avatarKey={room.host.avatar} className="w-14 h-14 rounded-lg flex-shrink-0" />
                 <div className="flex-grow text-left overflow-hidden">
                   <p className="font-bold text-lg text-gray-200 truncate">{room.host.name}'s Game</p>
@@ -62,14 +68,15 @@ const GameRoomsScreen: React.FC<GameRoomsScreenProps> = ({ onNewGame, onJoinRoom
                 {canJoin ? (
                     <button
                         onClick={() => onJoinRoom(room.id)}
-                        className="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex-shrink-0"
+                        className="btn btn-secondary px-6 py-2 flex-shrink-0"
+                        style={{borderColor: 'var(--color-green)', color: 'var(--color-green)'}}
                     >
                         Join
                     </button>
                 ) : (
                     <span
                       className={`px-4 py-2 text-sm font-semibold rounded-lg flex-shrink-0 cursor-default
-                        ${!isWaiting ? 'bg-yellow-800/50 text-yellow-300 border border-yellow-700/50' : 'bg-gray-600/50 text-gray-300 border border-gray-500/50'}`}
+                        ${!isWaiting ? 'text-yellow-300' : 'text-blue-300'}`}
                     >
                       {isWaiting ? 'Your Room' : 'In Progress'}
                     </span>
@@ -78,20 +85,23 @@ const GameRoomsScreen: React.FC<GameRoomsScreenProps> = ({ onNewGame, onJoinRoom
             );
           })
         ) : (
-          <p className="text-gray-400 py-8">No open rooms available. Why not create one?</p>
+          <div className="text-gray-500 py-8 border-2 border-dashed border-gray-700 rounded-lg">
+            <p className="text-lg">No open rooms available.</p>
+            <p>Why not create one?</p>
+          </div>
         )}
       </div>
 
       <div className="border-t border-gray-700 pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
         <button
           onClick={onViewLeaderboard}
-          className="px-8 py-3 bg-gray-700 text-white font-bold rounded-lg hover:bg-gray-600 transition-all duration-300 w-full sm:w-auto"
+          className="btn btn-secondary w-full sm:w-auto"
         >
           Leaderboard
         </button>
         <button
           onClick={onNewGame}
-          className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold rounded-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all duration-300 ease-in-out transform hover:scale-105"
+          className="btn btn-primary w-full sm:w-auto"
         >
           New Game
         </button>
