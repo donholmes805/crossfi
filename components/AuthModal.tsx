@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { signup, getUsers, deleteUser, AVATARS } from '../services/authService';
@@ -14,11 +15,10 @@ interface CreateViewProps {
   otherPlayer: User | null;
   hasExistingUsers: boolean;
   onBack: () => void;
-  onClose: () => void;
 }
 
 const CreateView: React.FC<CreateViewProps> = ({
-  onSubmit, error, name, setName, selectedAvatar, setSelectedAvatar, otherPlayer, hasExistingUsers, onBack, onClose
+  onSubmit, error, name, setName, selectedAvatar, setSelectedAvatar, otherPlayer, hasExistingUsers, onBack
 }) => (
   <form onSubmit={onSubmit}>
     <h2 className="text-2xl font-bold text-gray-100 mb-4">Create New Profile</h2>
@@ -57,14 +57,13 @@ const CreateView: React.FC<CreateViewProps> = ({
         })}
       </div>
     </div>
-    <div className="flex justify-between items-center">
+    <div className="flex items-center">
       {hasExistingUsers &&
-        <button type="button" onClick={onBack} className="text-sm text-blue-400 hover:underline">
+        <button type="button" onClick={onBack} className="text-sm text-blue-400 hover:underline mr-auto">
           &larr; Back to Select Profile
         </button>
       }
-      <div className={`flex justify-end gap-4 ${hasExistingUsers ? '' : 'w-full'}`}>
-        <button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-400 hover:bg-gray-800 transition-colors">Cancel</button>
+      <div className={`flex justify-end gap-4 ${!hasExistingUsers ? 'w-full' : ''}`}>
         <button type="submit" className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50" disabled={!name.trim()}>
           Create & Join
         </button>
@@ -80,11 +79,10 @@ interface SelectViewProps {
   onSelectUser: (user: User) => void;
   onDeleteUser: (userId: string) => void;
   onCreateNew: () => void;
-  onClose: () => void;
 }
 
 const SelectView: React.FC<SelectViewProps> = ({
-  users, otherPlayer, onSelectUser, onDeleteUser, onCreateNew, onClose
+  users, otherPlayer, onSelectUser, onDeleteUser, onCreateNew
 }) => (
   <div>
     <h2 className="text-2xl font-bold text-gray-100 mb-6">Select Your Profile</h2>
@@ -129,9 +127,6 @@ const SelectView: React.FC<SelectViewProps> = ({
       <button onClick={onCreateNew} className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">
         Create New Profile
       </button>
-    </div>
-    <div className="flex justify-end mt-6">
-      <button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-400 hover:bg-gray-800 transition-colors">Cancel</button>
     </div>
   </div>
 );
@@ -194,7 +189,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin, onClose, otherPlayer }) 
             onSelectUser={onLogin}
             onDeleteUser={handleDeleteUser}
             onCreateNew={() => { setView('create'); setError(null); }}
-            onClose={onClose}
           /> 
           : 
           <CreateView 
@@ -207,7 +201,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onLogin, onClose, otherPlayer }) 
             otherPlayer={otherPlayer}
             hasExistingUsers={existingUsers.length > 0}
             onBack={() => { setView('select'); setError(null); }}
-            onClose={onClose}
           />
         }
       </div>

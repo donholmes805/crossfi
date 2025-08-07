@@ -1,5 +1,6 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
-import { GameState, Player, GridData, User, ChatMessage, GameMode, Difficulty, Room } from './types';
+import { GameState, Player, User, ChatMessage, GameMode, Difficulty, Room, GridData } from './types';
 import LobbyScreen from './components/LobbyScreen';
 import GameBoardScreen from './components/GameBoardScreen';
 import GameOverScreen from './components/GameOverScreen';
@@ -10,25 +11,15 @@ import ModeSelectionScreen from './components/ModeSelectionScreen';
 import GameRoomsScreen from './components/GameRoomsScreen';
 import WinnerCelebrationScreen from './components/WinnerCelebrationScreen';
 import { generateWordsAndGrid } from './services/gameService';
-import { updateStats, AVATARS } from './services/authService';
+import * as authService from './services/authService';
 import * as roomService from './services/roomService';
 import { PVP_WORDS_TO_WIN, PVP_TOTAL_WORDS_IN_PUZZLE, PVC_WORDS_TO_WIN, PVC_TOTAL_WORDS_IN_PUZZLE } from './constants';
 import Logo from './components/icons/Logo';
 import Footer from './components/common/Footer';
-
-const createGuestUser = (): User => {
-    const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const avatarKeys = Object.keys(AVATARS);
-    const randomAvatar = avatarKeys[Math.floor(Math.random() * avatarKeys.length)];
-    return {
-      id: guestId,
-      name: `Player-${guestId.slice(-4)}`,
-      avatar: randomAvatar,
-      wins: 0,
-      losses: 0,
-      totalBonuses: 0,
-    };
-  };
+import LoginModal from './components/LoginModal';
+import AuthModal from './components/AuthModal';
+import ProfileWidget from './components/ProfileWidget';
+import ProfileScreen from './components/ProfileScreen';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.GameRooms);
@@ -42,22 +33,33 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [firstPlayerIndex, setFirstPlayerIndex] = useState(0);
   const [wordsToWin, setWordsToWin] = useState(PVP_WORDS_TO_WIN);
-
-  // Auth state is now a temporary guest user
-  const [currentUser] = useState<User>(createGuestUser());
   
+  // Auth state
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
   // Room state
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
 
   // Rematch state
   const [rematchRequests, setRematchRequests] = useState<string[]>([]);
 
+  // Effect to load logged-in user from local storage on startup
+  useEffect(() => {
+    const user = authService.getLoggedInUser();
+    if (user) {
+      setCurrentUser(user);
+    }
+    setIsAuthLoading(false);
+  }, []);
+
   // Effect to handle joining a room from a URL
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const roomIdFromUrl = searchParams.get('room');
 
-    if (roomIdFromUrl) {
+    // Only try to join if a user is logged in and a room ID is present
+    if (roomIdFromUrl && currentUser) {
       if (currentRoomId === roomIdFromUrl) return;
 
       const joinedRoom = roomService.joinRoom(roomIdFromUrl, currentUser);
@@ -69,52 +71,71 @@ const App: React.FC = () => {
           setGameMode(GameMode.PlayerVsPlayer);
           setGameState(GameState.Lobby);
       } else {
-          setError('Could not join room. It might be full or no longer exist.');
+          setError('Could not join room. It might be full or you tried to join your own room.');
           setGameState(GameState.GameRooms);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser]); // This should run once when the guest user is created.
+  }, [currentUser]); // This should run once the user logs in.
+
+  const handleLogin = (user: User) => {
+    authService.setCurrentUserId(user.id);
+    setCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    authService.clearCurrentUserId();
+    setCurrentUser(null);
+    setGameState(GameState.GameRooms);
+  };
+  
+  const handleDeleteCurrentUser = () => {
+    if (currentUser) {
+        authService.deleteUser(currentUser.id); // This also logs out
+        setCurrentUser(null);
+        setGameState(GameState.GameRooms);
+    }
+  };
+
+  const handleNavigate = (state: GameState) => {
+    setError(null);
+    setGameState(state);
+  };
 
   const handleModeSelected = useCallback((mode: GameMode, diff: Difficulty) => {
+    if (!currentUser) return; // Should be impossible if this is called from UI
     setGameMode(mode);
     setDifficulty(diff);
     setError(null);
 
     if (mode === GameMode.PlayerVsComputer) {
-        // No room needed for PvC
         setCurrentRoomId(null);
-        setGameState(GameState.Lobby);
+        handleNavigate(GameState.Lobby);
     } else {
-        // Create a new PvP room and go to lobby
         const newRoom = roomService.createRoom(currentUser);
         setCurrentRoomId(newRoom.id);
-        setGameState(GameState.Lobby);
+        handleNavigate(GameState.Lobby);
     }
   }, [currentUser]);
 
-  const handleNewGame = useCallback(() => {
-    setError(null);
-    setGameState(GameState.ModeSelection);
-  }, []);
-
   const handleJoinRoom = useCallback((roomId: string) => {
+    if (!currentUser) return;
     setError(null);
     const joinedRoom = roomService.joinRoom(roomId, currentUser);
     if (joinedRoom) {
         setCurrentRoomId(roomId);
-        setGameState(GameState.Lobby);
+        handleNavigate(GameState.Lobby);
     } else {
         setError('Could not join room. It might be full or no longer exists.');
     }
   }, [currentUser]);
 
   const handleLeaveLobby = useCallback(() => {
-    if (currentRoomId) {
+    if (currentRoomId && currentUser) {
         roomService.leaveRoom(currentRoomId, currentUser.id);
         setCurrentRoomId(null);
     }
-    setGameState(GameState.GameRooms);
+    handleNavigate(GameState.GameRooms);
   }, [currentRoomId, currentUser]);
 
   const handleReadyToStart = useCallback((player1: User, player2: User) => {
@@ -127,7 +148,7 @@ const App: React.FC = () => {
     if (gameMode === GameMode.PlayerVsComputer) {
       startNewGame(0);
     } else {
-      setGameState(GameState.CoinFlip);
+      handleNavigate(GameState.CoinFlip);
     }
   }, [gameMode]);
   
@@ -145,7 +166,7 @@ const App: React.FC = () => {
       const data = await generateWordsAndGrid(totalWordsForGame, theme);
       setGridData(data);
       setFirstPlayerIndex(fpIndex);
-      setGameState(GameState.InGame);
+      handleNavigate(GameState.InGame);
       setWinner(null);
       setMessages([]); 
       setRematchRequests([]);
@@ -156,7 +177,7 @@ const App: React.FC = () => {
         } else {
             setError("An unknown error occurred.");
         }
-        setGameState(GameState.Lobby);
+        handleNavigate(GameState.Lobby);
     } finally {
       setIsLoading(false);
     }
@@ -169,7 +190,7 @@ const App: React.FC = () => {
   const handleGameOver = useCallback((winningPlayer: Player, finalPlayersState: Player[]) => {
     setWinner(winningPlayer);
     setPlayers(finalPlayersState);
-    setGameState(GameState.WinnerCelebration);
+    handleNavigate(GameState.WinnerCelebration);
 
     if (gameMode === GameMode.PlayerVsPlayer && currentRoomId && winningPlayer.id === roomService.getRoom(currentRoomId)?.host.id) {
         roomService.deleteRoom(currentRoomId);
@@ -181,12 +202,12 @@ const App: React.FC = () => {
     const winnerFromState = finalPlayersState.find(p => p.id === winningPlayer.id)!;
     
     if (!winnerFromState.isAI && !losingPlayer.isAI) {
-      updateStats(winnerFromState, losingPlayer);
+      authService.updateStats(winnerFromState, losingPlayer);
     }
   }, [gameMode, currentRoomId]);
 
   const handleCelebrationEnd = useCallback(() => {
-    setGameState(GameState.GameOver);
+    handleNavigate(GameState.GameOver);
   }, []);
   
   const handleExitToGameRooms = useCallback(() => {
@@ -194,7 +215,7 @@ const App: React.FC = () => {
         roomService.deleteRoom(currentRoomId);
     }
     setCurrentRoomId(null);
-    setGameState(GameState.GameRooms);
+    handleNavigate(GameState.GameRooms);
     setPlayers([]);
     setGridData(null);
     setWinner(null);
@@ -212,7 +233,7 @@ const App: React.FC = () => {
   
   useEffect(() => {
     if (rematchRequests.length === 2 && players.length === 2) {
-      setGameState(GameState.ThemeVoting);
+      handleNavigate(GameState.ThemeVoting);
     }
   }, [rematchRequests, players]);
 
@@ -232,20 +253,24 @@ const App: React.FC = () => {
   }, []);
 
   const renderContent = () => {
+    if (!currentUser) return null; // Should not be reached if auth flow is correct
+
     switch (gameState) {
+      case GameState.Profile:
+        return <ProfileScreen currentUser={currentUser} onDelete={handleDeleteCurrentUser} onNavigate={handleNavigate} />;
       case GameState.Leaderboard:
-        return <LeaderboardScreen onBack={() => setGameState(GameState.GameRooms)} />;
-       case GameState.ModeSelection:
-        return <ModeSelectionScreen onModeSelected={handleModeSelected} onBack={() => setGameState(GameState.GameRooms)} />;
+        return <LeaderboardScreen onBack={() => handleNavigate(GameState.GameRooms)} />;
+      case GameState.ModeSelection:
+        return <ModeSelectionScreen onModeSelected={handleModeSelected} onBack={() => handleNavigate(GameState.GameRooms)} />;
       case GameState.GameRooms:
-        return <GameRoomsScreen currentUser={currentUser} onNewGame={handleNewGame} onJoinRoom={handleJoinRoom} onViewLeaderboard={() => setGameState(GameState.Leaderboard)} error={error} />;
+        return <GameRoomsScreen currentUser={currentUser} onNewGame={() => handleNavigate(GameState.ModeSelection)} onJoinRoom={handleJoinRoom} onViewLeaderboard={() => handleNavigate(GameState.Leaderboard)} error={error} />;
       case GameState.Lobby:
         return <LobbyScreen 
                     onReadyToStart={handleReadyToStart} 
                     isLoading={isLoading} 
                     error={error} 
                     currentUser={currentUser} 
-                    onBack={gameMode === GameMode.PlayerVsPlayer ? handleLeaveLobby : () => setGameState(GameState.ModeSelection)}
+                    onBack={gameMode === GameMode.PlayerVsPlayer ? handleLeaveLobby : () => handleNavigate(GameState.ModeSelection)}
                     gameMode={gameMode}
                     difficulty={difficulty}
                     roomId={currentRoomId}
@@ -277,12 +302,36 @@ const App: React.FC = () => {
       case GameState.ThemeVoting:
         return <ThemeVotingScreen players={players} onThemeSelected={handleThemeSelected} />;
       default:
-        return <GameRoomsScreen currentUser={currentUser} onNewGame={handleNewGame} onJoinRoom={handleJoinRoom} onViewLeaderboard={() => setGameState(GameState.Leaderboard)} error={error} />;
+        return <GameRoomsScreen currentUser={currentUser} onNewGame={() => handleNavigate(GameState.ModeSelection)} onJoinRoom={handleJoinRoom} onViewLeaderboard={() => handleNavigate(GameState.Leaderboard)} error={error} />;
     }
   };
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <p className="text-xl text-gray-400 animate-pulse">Loading Game...</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    const searchParams = new URLSearchParams(window.location.search);
+    const roomIdFromUrl = searchParams.get('room');
+    const room = roomIdFromUrl ? roomService.getRoom(roomIdFromUrl) : null;
+    const otherPlayer = room ? room.host : null;
+
+    if (otherPlayer) {
+      // User is joining a specific room, show AuthModal with opponent info
+      return <AuthModal onLogin={handleLogin} onClose={() => {}} otherPlayer={otherPlayer} />;
+    }
+    
+    // Standard login/signup flow
+    return <LoginModal onLogin={handleLogin} onClose={() => {}} initialView="login" />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center p-4 pt-8 relative">
+        <ProfileWidget currentUser={currentUser} onLogout={handleLogout} onNavigate={handleNavigate} />
         <header className="w-full max-w-5xl mx-auto text-center mb-8 flex flex-col items-center">
             <Logo className="w-full max-w-lg h-auto" />
             <p className="mt-4 text-lg text-gray-400">An AI-Powered 1v1 Crossword Battle</p>

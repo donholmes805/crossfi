@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { signup, getUsers, AVATARS } from '../services/authService';
@@ -12,11 +13,10 @@ interface CreateViewProps {
   setSelectedAvatar: (key: string) => void;
   hasExistingUsers: boolean;
   onBack: () => void;
-  onClose: () => void;
 }
 
 const CreateView: React.FC<CreateViewProps> = ({
-  onSubmit, error, name, setName, selectedAvatar, setSelectedAvatar, hasExistingUsers, onBack, onClose
+  onSubmit, error, name, setName, selectedAvatar, setSelectedAvatar, hasExistingUsers, onBack
 }) => (
   <form onSubmit={onSubmit}>
     <h2 className="text-2xl font-bold text-gray-100 mb-4">Create New Profile</h2>
@@ -51,14 +51,13 @@ const CreateView: React.FC<CreateViewProps> = ({
         ))}
       </div>
     </div>
-    <div className="flex justify-between items-center">
-      {hasExistingUsers &&
-        <button type="button" onClick={onBack} className="text-sm text-blue-400 hover:underline">
+    <div className="flex items-center">
+      {hasExistingUsers && (
+        <button type="button" onClick={onBack} className="text-sm text-blue-400 hover:underline mr-auto">
           &larr; Back to Sign In
         </button>
-      }
-      <div className={`flex justify-end gap-4 ${hasExistingUsers ? '' : 'w-full'}`}>
-        <button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-400 hover:bg-gray-800 transition-colors">Cancel</button>
+      )}
+      <div className={`flex justify-end gap-4 ${!hasExistingUsers ? 'w-full' : ''}`}>
         <button type="submit" className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50" disabled={!name.trim()}>
           Create & Sign In
         </button>
@@ -71,10 +70,9 @@ interface SelectViewProps {
   users: User[];
   onSelectUser: (user: User) => void;
   onCreateNew: () => void;
-  onClose: () => void;
 }
 
-const SelectView: React.FC<SelectViewProps> = ({ users, onSelectUser, onCreateNew, onClose }) => (
+const SelectView: React.FC<SelectViewProps> = ({ users, onSelectUser, onCreateNew }) => (
   <div>
     <h2 className="text-2xl font-bold text-gray-100 mb-6">Sign In</h2>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[20rem] overflow-y-auto pr-2 mb-6">
@@ -99,9 +97,6 @@ const SelectView: React.FC<SelectViewProps> = ({ users, onSelectUser, onCreateNe
       <button onClick={onCreateNew} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">
         Create New Profile
       </button>
-    </div>
-    <div className="flex justify-end mt-6">
-      <button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-400 hover:bg-gray-800 transition-colors">Cancel</button>
     </div>
   </div>
 );
@@ -149,7 +144,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLogin, onClose, initialView }
             users={existingUsers}
             onSelectUser={onLogin}
             onCreateNew={() => { setView('signup'); setError(null); }}
-            onClose={onClose}
           />
           :
           <CreateView
@@ -161,7 +155,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLogin, onClose, initialView }
             setSelectedAvatar={setSelectedAvatar}
             hasExistingUsers={existingUsers.length > 0}
             onBack={() => { setView('login'); setError(null); }}
-            onClose={onClose}
           />
         }
       </div>

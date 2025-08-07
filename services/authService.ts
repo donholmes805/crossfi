@@ -1,6 +1,8 @@
+
 import { User, Player } from '../types';
 
 const USERS_STORAGE_KEY = 'crossfiword-wars-users';
+const CURRENT_USER_ID_KEY = 'crossfiword-wars-current-user-id';
 
 // A simple map of avatar keys to display names for the UI
 export const AVATARS: Record<string, string> = {
@@ -26,6 +28,31 @@ const saveStoredUsers = (users: Record<string, User>) => {
     } catch (e) {
         console.error("Failed to save users to localStorage", e);
     }
+};
+
+export const setCurrentUserId = (userId: string) => {
+    localStorage.setItem(CURRENT_USER_ID_KEY, userId);
+};
+
+export const getCurrentUserId = (): string | null => {
+    return localStorage.getItem(CURRENT_USER_ID_KEY);
+};
+
+export const clearCurrentUserId = () => {
+    localStorage.removeItem(CURRENT_USER_ID_KEY);
+};
+
+export const getLoggedInUser = (): User | null => {
+    const userId = getCurrentUserId();
+    if (!userId) return null;
+    const users = getStoredUsers();
+    const user = users[userId] || null;
+    if (!user) {
+        // Data inconsistency, clear the invalid user ID
+        clearCurrentUserId();
+        return null;
+    }
+    return user;
 };
 
 export const signup = (name: string, avatar: string): { user: User | null; error?: string } => {
@@ -55,6 +82,10 @@ export const deleteUser = (userId: string) => {
     if (users[userId]) {
         delete users[userId];
         saveStoredUsers(users);
+    }
+    // Also log out if the deleted user was the current user
+    if (getCurrentUserId() === userId) {
+        clearCurrentUserId();
     }
 };
 
