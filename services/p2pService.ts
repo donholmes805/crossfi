@@ -1,5 +1,7 @@
 
-import Peer, { DataConnection } from 'peerjs';
+
+
+import Peer, { DataConnection, PeerJSOption } from 'peerjs';
 import { Player, GridData, ChatMessage } from '../types';
 
 // A generic, type-safe event emitter.
@@ -56,6 +58,20 @@ type P2PServiceEvents = {
     'error': (error: Error) => void;
 };
 
+const PEERJS_CONFIG: PeerJSOption = {
+    // Using public STUN servers for better NAT traversal and connection reliability.
+    // This helps prevent "Lost connection to server" errors from the default PeerJS broker.
+    config: {
+        'iceServers': [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+        ]
+    }
+};
+
 class P2PService extends EventEmitter<P2PServiceEvents> {
     public peer: Peer | null = null;
     public connection: DataConnection | null = null;
@@ -64,7 +80,7 @@ class P2PService extends EventEmitter<P2PServiceEvents> {
 
     initializeAsHost() {
         this.isHost = true;
-        this.peer = new Peer();
+        this.peer = new Peer(PEERJS_CONFIG);
 
         this.peer.on('open', (id) => {
             this.peerId = id;
@@ -87,7 +103,7 @@ class P2PService extends EventEmitter<P2PServiceEvents> {
 
     initializeAsGuestAndConnect(hostId: string) {
         this.isHost = false;
-        this.peer = new Peer();
+        this.peer = new Peer(PEERJS_CONFIG);
         this.peerId = null; 
 
         this.peer.on('open', () => {

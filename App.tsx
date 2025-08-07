@@ -291,7 +291,7 @@ const App: React.FC = () => {
     setVotes(prev => ({ ...prev, [currentUser.id]: theme }));
     if (gameMode === GameMode.PlayerVsPlayer) {
         p2pService.sendMessage({ type: 'THEME_VOTE', payload: { theme } });
-    } else if (gameMode === GameMode.PlayerVsComputer) {
+    } else { // Assumes gameMode is PlayerVsComputer
         const aiPlayer = players.find(p => p.isAI);
         if (aiPlayer) {
             const randomTheme = THEMES[Math.floor(Math.random() * THEMES.length)];
