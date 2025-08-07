@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { GameState, Player, User, ChatMessage, GameMode, Difficulty, GridData, WordLocation, FullGameState, ChatEventType } from './types';
+import { GameState, Player, User, ChatMessage, GameMode, Difficulty, GridData, WordLocation, FullGameState, ChatEventType, CellCoord } from './types';
 import LobbyScreen from './components/LobbyScreen';
 import GameBoardScreen from './components/GameBoardScreen';
 import GameOverScreen from './components/GameOverScreen';
@@ -13,7 +13,7 @@ import { generateWordsAndGrid, THEMES } from './services/gameService';
 import * as authService from './services/authService';
 import * as aiService from './services/aiService';
 import { p2pService, P2PMessage } from './services/p2pService';
-import { PVP_WORDS_TO_WIN, PVC_WORDS_TO_WIN, AI_OPPONENTS, PVP_TOTAL_WORDS_IN_PUZZLE, PVC_TOTAL_WORDS_IN_PUZZLE, TURN_DURATION, BONUS_TIME_THRESHOLD, BONUS_TIME_AWARD } from './constants';
+import { PVP_WORDS_TO_WIN, PVC_WORDS_TO_WIN, AI_OPPONENTS, PVP_TOTAL_WORDS_IN_PUZZLE, PVC_TOTAL_WORDS_IN_PUZZLE, TURN_DURATION, BONUS_TIME_THRESHOLD, BONUS_TIME_AWARD, HINT_COST } from './constants';
 import Logo from './components/icons/Logo';
 import Footer from './components/common/Footer';
 import LoginModal from './components/LoginModal';
@@ -46,6 +46,7 @@ const App: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState(TURN_DURATION);
   const [isTurnActive, setIsTurnActive] = useState(false);
   const [turnResult, setTurnResult] = useState<'success' | 'fail' | null>(null);
+  const [hintedCell, setHintedCell] = useState<CellCoord | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [aiCanChat, setAiCanChat] = useState(true);
 
@@ -155,6 +156,7 @@ const App: React.FC = () => {
 
   const advanceTurn = useCallback((currentPlayers: Player[], currentGridData: GridData, nextPlayerIdx: number) => {
     setIsTurnActive(false);
+    setHintedCell(null);
     
     setTimeout(() => {
       const p1Score = currentGridData.words.filter(w => w.foundBy === currentPlayers[0].id).length;
@@ -223,6 +225,20 @@ const App: React.FC = () => {
     }
   }, [players, currentPlayerIndex, isTurnActive, gameMode, currentUser?.id]);
 
+  const handleUseHint = useCallback(() => {
+    const isGuestTurn = gameMode === GameMode.PlayerVsPlayer && !p2pService.isHost && players[currentPlayerIndex]?.id === currentUser?.id;
+    if (isGuestTurn) {
+        p2pService.sendMessage({ type: 'ACTION_USE_HINT' });
+        return;
+    }
+
+    const currentPlayer = players[currentPlayerIndex];
+    if (currentPlayer.bonusTime >= HINT_COST && isTurnActive && wordToFind) {
+      setPlayers(ps => ps.map(p => p.id === currentPlayer.id ? { ...p, bonusTime: p.bonusTime - HINT_COST } : p));
+      setHintedCell({ row: wordToFind.startRow, col: wordToFind.startCol });
+    }
+  }, [players, currentPlayerIndex, isTurnActive, gameMode, currentUser?.id, wordToFind]);
+
   const handleP2PData = useCallback((data: P2PMessage) => {
     switch (data.type) {
         case 'USER_PROFILE': {
@@ -256,6 +272,7 @@ const App: React.FC = () => {
             setTimeLeft(newState.timeLeft);
             setIsTurnActive(newState.isTurnActive);
             setTurnResult(newState.turnResult);
+            setHintedCell(newState.hintedCell);
             setMessages(newState.chatMessages);
             break;
         }
@@ -265,6 +282,10 @@ const App: React.FC = () => {
         }
         case 'ACTION_USE_BONUS': {
             if (p2pService.isHost) handleUseBonusTime();
+            break;
+        }
+        case 'ACTION_USE_HINT': {
+            if (p2pService.isHost) handleUseHint();
             break;
         }
         case 'FORFEIT': {
@@ -311,7 +332,7 @@ const App: React.FC = () => {
             break;
         }
     }
-  }, [players, currentUser, handleGameOver, handleWordSelected, handleUseBonusTime]);
+  }, [players, currentUser, handleGameOver, handleWordSelected, handleUseBonusTime, handleUseHint]);
   
   // Subscribe to P2P data events
   useEffect(() => {
@@ -340,6 +361,7 @@ const App: React.FC = () => {
       setMessages([]); 
       setRematchRequests([]);
       setVotes({});
+      setHintedCell(null);
       setTurnType('normal');
       setTimeLeft(TURN_DURATION);
       setTurnResult(null);
@@ -452,17 +474,17 @@ const App: React.FC = () => {
      if (gameMode !== GameMode.PlayerVsPlayer || !p2pService.isHost) return;
 
      const fullState: FullGameState = {
-        players, gridData: gridData!, currentPlayerIndex, turnType, wordToFind, timeLeft, isTurnActive, turnResult, chatMessages: messages
+        players, gridData: gridData!, currentPlayerIndex, turnType, wordToFind, timeLeft, isTurnActive, turnResult, hintedCell, chatMessages: messages
      };
      p2pService.sendMessage({ type: 'GAME_STATE_UPDATE', payload: fullState });
 
-  }, [players, gridData, currentPlayerIndex, turnType, wordToFind, timeLeft, isTurnActive, turnResult, messages, gameMode]);
+  }, [players, gridData, currentPlayerIndex, turnType, wordToFind, timeLeft, isTurnActive, turnResult, hintedCell, messages, gameMode]);
 
   useEffect(() => {
     if (gameState === GameState.InGame && p2pService.isHost) {
         broadcastGameState();
     }
-  }, [players, gridData, currentPlayerIndex, turnType, wordToFind, timeLeft, isTurnActive, turnResult, messages, gameState, broadcastGameState]);
+  }, [players, gridData, currentPlayerIndex, turnType, wordToFind, timeLeft, isTurnActive, turnResult, hintedCell, messages, gameState, broadcastGameState]);
 
   // AI Turn Logic - Fixed
   useEffect(() => {
@@ -590,21 +612,16 @@ const App: React.FC = () => {
     if (vote1 === vote2) {
       winningTheme = vote1;
     } else {
-      switch (gameMode) {
-        case GameMode.PlayerVsPlayer: {
-          const host = p2pService.isHost ? currentUser : players.find(p => p.id !== currentUser!.id);
-          if (host) {
-            winningTheme = votes[host.id];
-          }
-          if (!p2pService.isHost) {
-            return; // Guest waits for host to start the game
-          }
-          break;
+      if (gameMode === GameMode.PlayerVsPlayer) {
+        const host = p2pService.isHost ? currentUser : players.find(p => p.id !== currentUser!.id);
+        if (host) {
+          winningTheme = votes[host.id];
         }
-        case GameMode.PlayerVsComputer: {
-          winningTheme = Math.random() < 0.5 ? vote1 : vote2;
-          break;
+        if (!p2pService.isHost) {
+          return; // Guest waits for host to start the game
         }
+      } else if (gameMode === GameMode.PlayerVsComputer) {
+        winningTheme = Math.random() < 0.5 ? vote1 : vote2;
       }
     }
 
@@ -669,11 +686,13 @@ const App: React.FC = () => {
             onWordSelected={handleWordSelected}
             onUseBonusTime={handleUseBonusTime}
             onForfeit={handleForfeit}
+            onUseHint={handleUseHint}
             turnType={turnType}
             wordToFind={wordToFind}
             timeLeft={timeLeft}
             isTurnActive={isTurnActive}
             turnResult={turnResult}
+            hintedCell={hintedCell}
             chatMessages={messages}
             onSendMessage={handleSendMessage}
             wordsToWin={wordsToWin}

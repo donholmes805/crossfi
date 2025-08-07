@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { GridData, Direction } from '../../types';
+import { GridData, Direction, CellCoord } from '../../types';
 import { GRID_SIZE } from '../../constants';
 
 interface WordGridProps {
@@ -9,11 +9,7 @@ interface WordGridProps {
   turnResult: 'success' | 'fail' | null;
   revealWords: boolean;
   isTurnActive: boolean;
-}
-
-interface CellCoord {
-    row: number;
-    col: number;
+  hintedCell: CellCoord | null;
 }
 
 const getLineCoords = (start: CellCoord, end: CellCoord): CellCoord[] => {
@@ -53,7 +49,7 @@ const getLineCoords = (start: CellCoord, end: CellCoord): CellCoord[] => {
     return [start];
 }
 
-const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResult, revealWords, isTurnActive }) => {
+const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResult, revealWords, isTurnActive, hintedCell }) => {
   const [selectedCells, setSelectedCells] = useState<CellCoord[]>([]);
   const [failedSelection, setFailedSelection] = useState<CellCoord[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -184,15 +180,17 @@ const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResul
     const isSelected = selectedCells.some(c => c.row === row && c.col === col);
     const isFailed = failedSelection.some(c => c.row === row && c.col === col);
     const isRevealed = revealWords && isPartOfAnyWord && !isFound;
+    const isHint = hintedCell && hintedCell.row === row && hintedCell.col === col;
     
     let cellClass = 'fw-bold rounded user-select-none';
     
-    if (turnResult === 'success' && isSelected) cellClass += ' bg-success text-white ring-2 ring-white z-1 animate-pulse';
+    if (turnResult === 'success' && isSelected) cellClass += ' bg-success text-white border-2 border-white z-1 animate-pulse';
     else if (turnResult === 'fail' && isSelected) cellClass += ' bg-danger text-white z-1 animate-pulse';
     else if (isFailed) cellClass += ' animate-shake bg-danger bg-opacity-75';
     else if (isFound) cellClass += ' bg-primary bg-opacity-75 text-white';
     else if (isSelected) cellClass += ' bg-warning text-black scale-110 z-1';
-    else if (isRevealed) cellClass += ' bg-purple-900/70 text-purple-200';
+    else if (isHint) cellClass += ' bg-info bg-opacity-50 border-2 border-info animate-pulse';
+    else if (isRevealed) cellClass += ' bg-secondary bg-opacity-50';
     else cellClass += ' bg-secondary bg-opacity-25 text-light';
     
     if (isTurnActive) cellClass += ' cursor-pointer';

@@ -1,4 +1,3 @@
-
 export enum GameState {
   MainMenu,
   Profile,
@@ -67,6 +66,11 @@ export interface WordLocation {
     foundBy: string | null; // User ID
 }
 
+export interface CellCoord {
+    row: number;
+    col: number;
+}
+
 export interface GridData {
     grid: GridCell[][];
     words: WordLocation[];
@@ -81,6 +85,7 @@ export interface FullGameState {
     timeLeft: number;
     isTurnActive: boolean;
     turnResult: 'success' | 'fail' | null;
+    hintedCell: CellCoord | null;
     chatMessages: ChatMessage[];
 }
 

@@ -1,12 +1,13 @@
 import React, { useCallback, useState } from 'react';
-import { Player, GridData, ChatMessage, WordLocation, User } from '../types';
-import { BONUS_TIME_AWARD, TURN_DURATION } from '../constants';
+import { Player, GridData, ChatMessage, WordLocation, User, CellCoord } from '../types';
+import { BONUS_TIME_AWARD, HINT_COST, TURN_DURATION } from '../constants';
 import PlayerInfo from './common/PlayerInfo';
 import Timer from './common/Timer';
 import WordGrid from './common/WordGrid';
 import ChatBox from './common/ChatBox';
 import EyeIcon from './icons/EyeIcon';
 import EyeSlashIcon from './icons/EyeSlashIcon';
+import QuestionMarkCircleIcon from './icons/QuestionMarkCircleIcon';
 
 interface GameBoardScreenProps {
   players: Player[];
@@ -14,12 +15,14 @@ interface GameBoardScreenProps {
   currentPlayerIndex: number;
   onWordSelected: (word: string) => void;
   onUseBonusTime: () => void;
+  onUseHint: () => void;
   onForfeit: () => void;
   turnType: 'normal' | 'steal';
   wordToFind: WordLocation | null;
   timeLeft: number;
   isTurnActive: boolean;
   turnResult: 'success' | 'fail' | null;
+  hintedCell: CellCoord | null;
   chatMessages: ChatMessage[];
   onSendMessage: (message: string, user: Player) => void;
   wordsToWin: number;
@@ -28,8 +31,8 @@ interface GameBoardScreenProps {
 
 const GameBoardScreen: React.FC<GameBoardScreenProps> = (props) => {
   const {
-    players, gridData, currentPlayerIndex, onWordSelected, onUseBonusTime, onForfeit,
-    turnType, wordToFind, timeLeft, isTurnActive, turnResult,
+    players, gridData, currentPlayerIndex, onWordSelected, onUseBonusTime, onForfeit, onUseHint,
+    turnType, wordToFind, timeLeft, isTurnActive, turnResult, hintedCell,
     chatMessages, onSendMessage, wordsToWin, currentUser
   } = props;
 
@@ -68,12 +71,19 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = (props) => {
                 turnResult={turnResult}
                 revealWords={isSpectatorView}
                 isTurnActive={isMyTurn && isTurnActive && !isSpectatorView}
+                hintedCell={hintedCell}
               />
-              <div className="mt-3 d-flex gap-2 justify-content-center align-items-center">
+              <div className="mt-3 d-flex gap-2 justify-content-center align-items-center flex-wrap">
                 {isMyTurn && isTurnActive && turnType === 'normal' && (
-                  <button onClick={onUseBonusTime} disabled={currentPlayer.bonusTime < BONUS_TIME_AWARD} className="btn btn-secondary">
-                    Use Bonus (+{BONUS_TIME_AWARD}s)
-                  </button>
+                  <>
+                    <button onClick={onUseBonusTime} disabled={currentPlayer.bonusTime < BONUS_TIME_AWARD} className="btn btn-secondary">
+                      Use Bonus (+{BONUS_TIME_AWARD}s)
+                    </button>
+                    <button onClick={onUseHint} disabled={currentPlayer.bonusTime < HINT_COST} className="btn btn-info d-flex align-items-center">
+                      <QuestionMarkCircleIcon className="me-2" style={{width: '20px', height: '20px'}}/>
+                      Hint (-{HINT_COST}s)
+                    </button>
+                  </>
                 )}
                 {!isSpectatorView && (
                   <button onClick={handleForfeitClick} className="btn btn-danger">Forfeit Match</button>

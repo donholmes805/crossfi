@@ -3,6 +3,7 @@ import { User, Difficulty } from "./types";
 export const TURN_DURATION = 60; // seconds
 export const BONUS_TIME_THRESHOLD = 30; // seconds
 export const BONUS_TIME_AWARD = 5; // seconds
+export const HINT_COST = 10; // seconds
 export const GRID_SIZE = 10;
 
 export const PVP_WORDS_TO_WIN = 2;

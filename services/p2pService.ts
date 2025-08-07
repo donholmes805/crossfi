@@ -34,6 +34,7 @@ export type P2PMessage =
   | { type: 'CHAT_MESSAGE'; payload: ChatMessage }
   | { type: 'ACTION_SELECT_WORD'; payload: { word: string } }
   | { type: 'ACTION_USE_BONUS' }
+  | { type: 'ACTION_USE_HINT' }
   | { type: 'FORFEIT' }
   | { type: 'REMATCH_REQUEST' }
   | { type: 'THEME_VOTE'; payload: { theme: string } }
