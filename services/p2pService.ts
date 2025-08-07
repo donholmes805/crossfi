@@ -1,8 +1,6 @@
 
-
-
 import Peer, { DataConnection, PeerJSOption } from 'peerjs';
-import { Player, GridData, ChatMessage } from '../types';
+import { Player, GridData, ChatMessage, User, FullGameState } from '../types';
 
 // A generic, type-safe event emitter.
 class EventEmitter<Events extends Record<string, (...args: any[]) => void>> {
@@ -27,19 +25,11 @@ class EventEmitter<Events extends Record<string, (...args: any[]) => void>> {
     }
 }
 
-export interface GameStatePayload {
-    players: Player[];
-    gridData: GridData;
-    currentPlayerIndex: number;
-    turnType: 'normal' | 'steal';
-    wordToFind: any;
-    timeLeft: number;
-}
-
 // Define the types of messages we can send
 export type P2PMessage =
+  | { type: 'USER_PROFILE'; payload: { user: User } }
   | { type: 'START_GAME'; payload: { firstPlayerIndex: number; gridData: GridData, wordsToWin: number } }
-  | { type: 'GAME_STATE_UPDATE'; payload: GameStatePayload }
+  | { type: 'GAME_STATE_UPDATE'; payload: FullGameState }
   | { type: 'GAME_OVER'; payload: { winner: Player; finalPlayers: Player[] } }
   | { type: 'CHAT_MESSAGE'; payload: ChatMessage }
   | { type: 'ACTION_SELECT_WORD'; payload: { word: string } }
@@ -59,8 +49,6 @@ type P2PServiceEvents = {
 };
 
 const PEERJS_CONFIG: PeerJSOption = {
-    // Using public STUN servers for better NAT traversal and connection reliability.
-    // This helps prevent "Lost connection to server" errors from the default PeerJS broker.
     config: {
         'iceServers': [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -89,13 +77,11 @@ class P2PService extends EventEmitter<P2PServiceEvents> {
 
         this.peer.on('connection', (conn) => {
             if (this.connection) {
-                // Already have a connection, reject new one
                 conn.on('open', () => conn.close());
                 return;
             }
             this.connection = conn;
             this.setupConnectionListeners();
-            this.emit('connection-open', conn);
         });
 
         this.peer.on('error', (err) => this.emit('error', err));

@@ -1,3 +1,4 @@
+
 export enum GameState {
   MainMenu,
   Profile,
@@ -71,11 +72,16 @@ export interface GridData {
     words: WordLocation[];
 }
 
-export interface Room {
-  id: string;
-  host: User;
-  guest: User | null;
-  status: 'waiting' | 'full';
+export interface FullGameState {
+    players: Player[];
+    gridData: GridData;
+    currentPlayerIndex: number;
+    turnType: 'normal' | 'steal';
+    wordToFind: WordLocation | null;
+    timeLeft: number;
+    isTurnActive: boolean;
+    turnResult: 'success' | 'fail' | null;
+    chatMessages: ChatMessage[];
 }
 
 export enum ChatEventType {

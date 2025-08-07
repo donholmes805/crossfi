@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { GridData, Direction } from '../../types';
 import { GRID_SIZE } from '../../constants';
@@ -13,6 +14,43 @@ interface WordGridProps {
 interface CellCoord {
     row: number;
     col: number;
+}
+
+const getLineCoords = (start: CellCoord, end: CellCoord): CellCoord[] => {
+    const coords: CellCoord[] = [];
+    let { row: x0, col: y0 } = start;
+    const { row: x1, col: y1 } = end;
+
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    
+    const sx = Math.sign(dx);
+    const sy = Math.sign(dy);
+    
+    // Horizontal line
+    if (dx !== 0 && dy === 0) {
+        for(let i=0; i <= Math.abs(dx); i++) {
+            coords.push({ row: x0 + i * sx, col: y0 });
+        }
+        return coords;
+    }
+    // Vertical line
+    if (dy !== 0 && dx === 0) {
+        for(let i=0; i <= Math.abs(dy); i++) {
+            coords.push({ row: x0, col: y0 + i * sy });
+        }
+        return coords;
+    }
+    // Diagonal line
+    if (Math.abs(dx) === Math.abs(dy) && dx !== 0) {
+        for(let i=0; i <= Math.abs(dx); i++) {
+            coords.push({ row: x0 + i * sx, col: y0 + i * sy });
+        }
+        return coords;
+    }
+
+    // If it's not a straight line or just a single point, return only the starting cell.
+    return [start];
 }
 
 const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResult, revealWords, isTurnActive }) => {
@@ -71,21 +109,24 @@ const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResul
 
   const handlePointerMove = (e: React.PointerEvent, row: number, col: number) => {
     if (!isSelecting) return;
-    const lastCell = selectedCells[selectedCells.length - 1];
-    if (lastCell && (Math.abs(lastCell.row - row) > 1 || Math.abs(lastCell.col - col) > 1)) return;
-    setSelectedCells(prev => prev.find(c => c.row === row && c.col === col) ? prev : [...prev, { row, col }]);
+    
+    const startCell = selectedCells[0];
+    if (!startCell) return;
+  
+    const endCell = { row, col };
+    const lineCoords = getLineCoords(startCell, endCell);
+    setSelectedCells(lineCoords);
   };
 
   const handlePointerUp = useCallback(() => {
     if (!isSelecting) return;
+    setIsSelecting(false);
+
     if (selectedCells.length < 2) {
-      setIsSelecting(false);
       setSelectedCells([]);
       return;
     }
     
-    setIsSelecting(false);
-
     const sortedSelected = [...selectedCells].sort((a, b) => a.row !== b.row ? a.row - b.row : a.col - b.col);
 
     let matchFound = false;
@@ -124,7 +165,7 @@ const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResul
     const isFailed = failedSelection.some(c => c.row === row && c.col === col);
     const isRevealed = revealWords && isPartOfAnyWord && !isFound;
     
-    let cellClass = 'd-flex align-items-center justify-content-center fw-bold rounded user-select-none';
+    let cellClass = 'fw-bold rounded user-select-none';
     
     if (turnResult === 'success' && isSelected) cellClass += ' bg-success text-white ring-2 ring-white z-1 animate-pulse';
     else if (turnResult === 'fail' && isSelected) cellClass += ' bg-danger text-white z-1 animate-pulse';
@@ -150,11 +191,13 @@ const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResul
         row.map((cell, colIndex) => (
           <div
             key={`${rowIndex}-${colIndex}`}
-            className={`ratio ratio-1x1 ${getCellClasses(rowIndex, colIndex)}`}
+            className="ratio ratio-1x1"
             onPointerDown={(e) => handlePointerDown(e, rowIndex, colIndex)}
             onPointerEnter={(e) => handlePointerMove(e, rowIndex, colIndex)}
           >
-            <span className="fs-6 fs-sm-5 fs-md-4">{cell.letter}</span>
+            <span className={`d-flex align-items-center justify-content-center w-100 h-100 fs-6 fs-sm-5 fs-md-4 ${getCellClasses(rowIndex, colIndex)}`}>
+                {cell.letter}
+            </span>
           </div>
         ))
       )}

@@ -1,21 +1,21 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, GameMode, Difficulty, Player } from '../types';
 import { AI_OPPONENTS } from '../constants';
 import UserAvatar from './icons/UserAvatar';
 import ClipboardIcon from './icons/ClipboardIcon';
-import { p2pService, P2PMessage } from '../services/p2pService';
+import { p2pService } from '../services/p2pService';
 import { DataConnection } from 'peerjs';
 
 interface LobbyScreenProps {
-  onReadyToStart: (player1: User, player2: User) => void;
+  onReadyToStart: () => void;
   isLoading: boolean;
   error: string | null;
   currentUser: User;
   onBack: () => void;
   gameMode: GameMode;
-  difficulty: Difficulty;
+  players: Player[];
   peerId: string | null;
-  setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
 }
 
 const PlayerSpot: React.FC<{ user: User | null; isCurrentUser?: boolean, isHost?: boolean }> = ({ user, isCurrentUser, isHost }) => {
@@ -93,51 +93,23 @@ const InviteFriend: React.FC<{ peerId: string | null }> = ({ peerId }) => {
     );
 };
 
-const LobbyScreen: React.FC<LobbyScreenProps> = ({ onReadyToStart, isLoading, error, currentUser, onBack, gameMode, difficulty, peerId, setPlayers }) => {
-  const [guest, setGuest] = useState<User | null>(null);
-
+const LobbyScreen: React.FC<LobbyScreenProps> = ({ onReadyToStart, isLoading, error, currentUser, onBack, gameMode, players, peerId }) => {
   const isPvc = gameMode === GameMode.PlayerVsComputer;
   const isHost = p2pService.isHost;
 
-  const player1 = isPvc ? currentUser : currentUser;
-  const player2 = isPvc ? AI_OPPONENTS[difficulty] : guest;
+  const player1 = players[0];
+  const player2 = players.length > 1 ? players[1] : null;
 
   useEffect(() => {
-    if (isPvc) return;
+    if (isPvc || !currentUser) return;
 
     const handleConnection = (conn: DataConnection) => {
-      // The host has received a connection
-      setGuest({ id: conn.peer, name: 'Opponent', avatar: 'pyro', wins: 0, losses: 0, totalBonuses: 0 }); // Placeholder until we exchange user data
+        p2pService.sendMessage({ type: 'USER_PROFILE', payload: { user: currentUser } });
     };
 
-    const handleData = (data: P2PMessage) => {
-        // Handle initial user data exchange if needed
-    };
-
-    const handleConnectionOpen = (conn: DataConnection) => {
-        // The guest has connected
-        setGuest({ id: conn.peer, name: 'Opponent', avatar: 'pyro', wins: 0, losses: 0, totalBonuses: 0 });
-    };
-
-    let unsubscribes: (() => void)[] = [];
-    if(isHost) {
-        unsubscribes.push(p2pService.on('connection-open', handleConnection));
-    } else {
-        unsubscribes.push(p2pService.on('connection-open', handleConnectionOpen));
-    }
-    unsubscribes.push(p2pService.on('data-received', handleData));
-
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, [isHost, isPvc, setPlayers, currentUser]);
-
-  useEffect(() => {
-    if(player1 && player2) {
-       setPlayers([{...player1, score: 0, bonusTime: 0, bonusesEarned: 0}, {...player2, score: 0, bonusTime: 0, bonusesEarned: 0}]);
-    } else if (player1) {
-       setPlayers([{...player1, score: 0, bonusTime: 0, bonusesEarned: 0}]);
-    }
-  }, [player1, player2, setPlayers]);
-
+    const unsubscribe = p2pService.on('connection-open', handleConnection);
+    return () => unsubscribe();
+  }, [isPvc, currentUser]);
 
   const getLobbyMessage = () => {
       if(isPvc) return 'Your AI opponent is waiting.';
@@ -155,14 +127,14 @@ const LobbyScreen: React.FC<LobbyScreenProps> = ({ onReadyToStart, isLoading, er
 
         <div className="row align-items-center g-3">
           <div className="col-md-5">
-            <PlayerSpot user={player1} isCurrentUser={true} isHost={isHost || isPvc} />
+            <PlayerSpot user={player1} isCurrentUser={player1?.id === currentUser.id} isHost={isHost || isPvc} />
           </div>
           <div className="col-md-2">
             <span className="display-4 fw-black text-secondary d-none d-md-block">VS</span>
              <span className="d-md-none text-secondary">VS</span>
           </div>
           <div className="col-md-5">
-            <PlayerSpot user={player2} />
+            <PlayerSpot user={player2} isCurrentUser={player2?.id === currentUser.id} />
           </div>
         </div>
 
@@ -176,7 +148,7 @@ const LobbyScreen: React.FC<LobbyScreenProps> = ({ onReadyToStart, isLoading, er
           </button>
           {(isHost || isPvc) && (
             <button
-              onClick={() => player1 && player2 && onReadyToStart(player1, player2)}
+              onClick={() => player1 && player2 && onReadyToStart()}
               disabled={isLoading || !player1 || !player2}
               className="btn btn-primary"
             >
