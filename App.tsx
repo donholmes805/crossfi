@@ -316,17 +316,23 @@ const App: React.FC = () => {
     const allVoted = Object.keys(votes).length === players.length;
 
     if (allVoted) {
-        const winningTheme = (() => {
-            const [p1, p2] = players;
-            const vote1 = votes[p1.id];
-            const vote2 = votes[p2.id];
-            if (vote1 === vote2) return vote1;
-            // In PvP, host decides tie. In PvC, it's random.
-            if (gameMode === GameMode.PlayerVsPlayer) {
-                return p2pService.isHost ? vote1 : vote2; // Simple tie-break
-            }
-            return Math.random() < 0.5 ? vote1 : vote2;
-        })();
+        let winningTheme: string;
+        const [p1, p2] = players;
+        const vote1 = votes[p1.id];
+        const vote2 = votes[p2.id];
+
+        if (vote1 === vote2) {
+            winningTheme = vote1;
+        } else if (gameMode === GameMode.PlayerVsPlayer) {
+            // Host's vote wins tie to ensure deterministic result on both clients
+            const opponent = players.find(p => p.id !== currentUser!.id);
+            const hostVote = p2pService.isHost
+                ? votes[currentUser!.id]
+                : votes[opponent!.id];
+            winningTheme = hostVote;
+        } else { // PlayerVsComputer
+            winningTheme = Math.random() < 0.5 ? vote1 : vote2;
+        }
         
         // Only host initiates the next game in PvP
         if (gameMode === GameMode.PlayerVsPlayer && !p2pService.isHost) return;
@@ -335,7 +341,7 @@ const App: React.FC = () => {
             handleThemeSelected(winningTheme);
         }, 2000);
     }
-  }, [votes, players, gameState, gameMode, handleThemeSelected]);
+  }, [votes, players, gameState, gameMode, handleThemeSelected, currentUser]);
 
 
   const handleSendMessage = useCallback((message: string, user: Player) => {
