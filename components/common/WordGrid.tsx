@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { GridData, Direction } from '../../types';
 import { GRID_SIZE } from '../../constants';
 
@@ -57,6 +57,7 @@ const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResul
   const [selectedCells, setSelectedCells] = useState<CellCoord[]>([]);
   const [failedSelection, setFailedSelection] = useState<CellCoord[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
   
   const foundCells = useMemo(() => {
     const cellSet = new Set<string>(); // "row-col"
@@ -100,22 +101,41 @@ const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResul
     }
   }, [turnResult]);
   
-  const handlePointerDown = (e: React.PointerEvent, row: number, col: number) => {
-    if (!isTurnActive) return;
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    setIsSelecting(true);
-    setSelectedCells([{ row, col }]);
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!isTurnActive || !gridRef.current) return;
+    gridRef.current.releasePointerCapture(e.pointerId);
+
+    const rect = gridRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const col = Math.floor((x / rect.width) * GRID_SIZE);
+    const row = Math.floor((y / rect.height) * GRID_SIZE);
+
+    if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
+        setIsSelecting(true);
+        setSelectedCells([{ row, col }]);
+    }
   };
 
-  const handlePointerMove = (e: React.PointerEvent, row: number, col: number) => {
-    if (!isSelecting) return;
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isSelecting || !gridRef.current) return;
     
-    const startCell = selectedCells[0];
-    if (!startCell) return;
-  
-    const endCell = { row, col };
-    const lineCoords = getLineCoords(startCell, endCell);
-    setSelectedCells(lineCoords);
+    const rect = gridRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const col = Math.floor((x / rect.width) * GRID_SIZE);
+    const row = Math.floor((y / rect.height) * GRID_SIZE);
+
+    if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
+        const startCell = selectedCells[0];
+        if (!startCell) return;
+      
+        const endCell = { row, col };
+        const lineCoords = getLineCoords(startCell, endCell);
+        setSelectedCells(lineCoords);
+    }
   };
 
   const handlePointerUp = useCallback(() => {
@@ -182,8 +202,11 @@ const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResul
 
   return (
     <div
+      ref={gridRef}
       className={`d-grid gap-1 bg-black bg-opacity-25 p-2 rounded-3 w-100 ${!isTurnActive ? 'cursor-not-allowed opacity-75' : ''}`}
       style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`, touchAction: 'none', maxWidth: '500px' }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
     >
@@ -192,8 +215,6 @@ const WordGrid: React.FC<WordGridProps> = ({ gridData, onWordSelected, turnResul
           <div
             key={`${rowIndex}-${colIndex}`}
             className="ratio ratio-1x1"
-            onPointerDown={(e) => handlePointerDown(e, rowIndex, colIndex)}
-            onPointerEnter={(e) => handlePointerMove(e, rowIndex, colIndex)}
           >
             <span className={`d-flex align-items-center justify-content-center w-100 h-100 fs-6 fs-sm-5 fs-md-4 ${getCellClasses(rowIndex, colIndex)}`}>
                 {cell.letter}

@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState } from 'react';
 import { Player, GridData, ChatMessage, WordLocation, User } from '../types';
 import { BONUS_TIME_AWARD, TURN_DURATION } from '../constants';
@@ -15,13 +14,13 @@ interface GameBoardScreenProps {
   currentPlayerIndex: number;
   onWordSelected: (word: string) => void;
   onUseBonusTime: () => void;
+  onForfeit: () => void;
   turnType: 'normal' | 'steal';
   wordToFind: WordLocation | null;
   timeLeft: number;
   isTurnActive: boolean;
   turnResult: 'success' | 'fail' | null;
   chatMessages: ChatMessage[];
-  onGameOver: (winner: Player, finalPlayers: Player[]) => void;
   onSendMessage: (message: string, user: Player) => void;
   wordsToWin: number;
   currentUser: User;
@@ -29,9 +28,9 @@ interface GameBoardScreenProps {
 
 const GameBoardScreen: React.FC<GameBoardScreenProps> = (props) => {
   const {
-    players, gridData, currentPlayerIndex, onWordSelected, onUseBonusTime,
+    players, gridData, currentPlayerIndex, onWordSelected, onUseBonusTime, onForfeit,
     turnType, wordToFind, timeLeft, isTurnActive, turnResult,
-    chatMessages, onGameOver, onSendMessage, wordsToWin, currentUser
+    chatMessages, onSendMessage, wordsToWin, currentUser
   } = props;
 
   const [isSpectatorView, setIsSpectatorView] = useState(false);
@@ -39,12 +38,11 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = (props) => {
   const isMyTurn = currentPlayer?.id === currentUser.id;
   const isSpectatorOrAI = isSpectatorView || (currentPlayer && currentPlayer.isAI);
 
-  const handleForfeit = useCallback(() => {
+  const handleForfeitClick = useCallback(() => {
     if (window.confirm('Are you sure you want to forfeit? This will count as a loss.')) {
-      const winner = players.find(p => p.id !== currentUser.id);
-      if (winner) onGameOver(winner, players);
+      onForfeit();
     }
-  }, [currentUser.id, players, onGameOver]);
+  }, [onForfeit]);
 
   return (
     <div className="card bg-dark text-light w-100">
@@ -78,7 +76,7 @@ const GameBoardScreen: React.FC<GameBoardScreenProps> = (props) => {
                   </button>
                 )}
                 {!isSpectatorView && (
-                  <button onClick={handleForfeit} className="btn btn-danger">Forfeit Match</button>
+                  <button onClick={handleForfeitClick} className="btn btn-danger">Forfeit Match</button>
                 )}
               </div>
               <ChatBox 

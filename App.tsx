@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, Player, User, ChatMessage, GameMode, Difficulty, GridData, WordLocation, FullGameState, ChatEventType } from './types';
 import LobbyScreen from './components/LobbyScreen';
 import GameBoardScreen from './components/GameBoardScreen';
@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [peerId, setPeerId] = useState<string | null>(null);
   const [rematchRequests, setRematchRequests] = useState<string[]>([]);
   const [votes, setVotes] = useState<Record<string, string>>({});
+  const [isStartingGame, setIsStartingGame] = useState(false);
 
   // Centralized Game State
   const [players, setPlayers] = useState<Player[]>([]);
@@ -47,6 +48,14 @@ const App: React.FC = () => {
   const [turnResult, setTurnResult] = useState<'success' | 'fail' | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [aiCanChat, setAiCanChat] = useState(true);
+
+  // Ref to hold the latest timeLeft value for callbacks without causing re-renders.
+  const timeLeftRef = useRef(timeLeft);
+  useEffect(() => {
+      timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
+
+  const aiTurnWordRef = useRef<string | null>(null);
 
   // Auth & P2P system initialization
   useEffect(() => {
@@ -104,6 +113,116 @@ const App: React.FC = () => {
     setGameState(state);
   }, []);
 
+  const handleGameOver = useCallback((winningPlayer: Player, finalPlayersState: Player[]) => {
+    setWinner(winningPlayer);
+    setPlayers(finalPlayersState);
+    handleNavigate(GameState.WinnerCelebration);
+    setIsTurnActive(false);
+    
+    if (gameMode === GameMode.PlayerVsPlayer && p2pService.isHost) {
+        p2pService.sendMessage({ type: 'GAME_OVER', payload: { winner: winningPlayer, finalPlayers: finalPlayersState } });
+    }
+
+    const losingPlayer = finalPlayersState.find(p => p.id !== winningPlayer.id);
+    if (losingPlayer && !winningPlayer.isAI && !losingPlayer.isAI) {
+      authService.updateStats(winningPlayer, losingPlayer);
+    }
+  }, [gameMode, handleNavigate]);
+  
+  const handleSendMessage = useCallback((message: string, user: Player) => {
+    const newMessage: ChatMessage = { userId: user.id, userName: user.name, message };
+    setMessages(prev => [...prev, newMessage]);
+    if (gameMode === GameMode.PlayerVsPlayer) {
+        p2pService.sendMessage({ type: 'CHAT_MESSAGE', payload: newMessage });
+    }
+  }, [gameMode]);
+
+  const triggerAiChat = useCallback(async (eventType: ChatEventType, playersOverride?: Player[]) => {
+    const currentPlayers = playersOverride || players;
+    const aiPlayer = currentPlayers.find(p => p.isAI);
+    const humanPlayer = currentPlayers.find(p => !p.isAI);
+
+    if (gameMode !== GameMode.PlayerVsComputer || !aiPlayer || !humanPlayer || !aiCanChat) return;
+    
+    setAiCanChat(false);
+    setTimeout(() => setAiCanChat(true), 4000 + Math.random() * 3000); // Cooldown of 4-7s
+
+    const message = await aiService.generateAiChatMessage(aiPlayer, humanPlayer, eventType);
+    if (message) {
+        handleSendMessage(message, aiPlayer);
+    }
+  }, [players, handleSendMessage, aiCanChat, gameMode]);
+
+  const advanceTurn = useCallback((currentPlayers: Player[], currentGridData: GridData, nextPlayerIdx: number) => {
+    setIsTurnActive(false);
+    
+    setTimeout(() => {
+      const p1Score = currentGridData.words.filter(w => w.foundBy === currentPlayers[0].id).length;
+      const p2Score = currentGridData.words.filter(w => w.foundBy === currentPlayers[1].id).length;
+
+      if(p1Score >= wordsToWin) { handleGameOver(currentPlayers[0], currentPlayers); return; }
+      if(p2Score >= wordsToWin) { handleGameOver(currentPlayers[1], currentPlayers); return; }
+
+      const nextWord = currentGridData.words.find(w => !w.found);
+      if (!nextWord) {
+        const winner = p1Score > p2Score ? currentPlayers[0] : p2Score > p1Score ? currentPlayers[1] : players[0];
+        handleGameOver(winner, currentPlayers);
+        return;
+      }
+
+      setWordToFind(nextWord);
+      setCurrentPlayerIndex(nextPlayerIdx);
+      setTurnType('normal');
+      setTimeLeft(TURN_DURATION);
+      setIsTurnActive(true);
+      setTurnResult(null);
+    }, 2000);
+  }, [handleGameOver, wordsToWin, players]);
+
+  const handleWordSelected = useCallback((word: string) => {
+    const isGuestTurn = gameMode === GameMode.PlayerVsPlayer && !p2pService.isHost && players[currentPlayerIndex]?.id === currentUser?.id;
+    if (isGuestTurn) {
+        p2pService.sendMessage({ type: 'ACTION_SELECT_WORD', payload: { word }});
+        return;
+    }
+
+    if (!isTurnActive || word.toUpperCase() !== wordToFind?.text.toUpperCase()) return;
+    
+    setIsTurnActive(false);
+    setTurnResult('success');
+    
+    const currentPlayer = players[currentPlayerIndex];
+    if (turnType === 'steal') { handleGameOver(currentPlayer, players); return; }
+    
+    const updatedPlayers = players.map(p => p.id === currentPlayer.id ? { ...p, score: p.score + 1, bonusTime: p.bonusTime + (timeLeftRef.current >= BONUS_TIME_THRESHOLD ? BONUS_TIME_AWARD : 0), bonusesEarned: p.bonusesEarned + (timeLeftRef.current >= BONUS_TIME_THRESHOLD ? 1 : 0) } : p);
+    
+    if (gameMode === GameMode.PlayerVsComputer) {
+        if (currentPlayer.isAI) triggerAiChat(ChatEventType.AiFoundWord, updatedPlayers);
+        else triggerAiChat(ChatEventType.PlayerFoundWord, updatedPlayers);
+    }
+    
+    setPlayers(updatedPlayers);
+    
+    const updatedGridData = { ...gridData!, words: gridData!.words.map(w => w.text === wordToFind.text ? { ...w, found: true, foundBy: currentPlayer.id } : w) };
+    setGridData(updatedGridData);
+    
+    advanceTurn(updatedPlayers, updatedGridData, (currentPlayerIndex + 1) % 2);
+  }, [isTurnActive, wordToFind, turnType, players, gridData, advanceTurn, handleGameOver, currentPlayerIndex, gameMode, triggerAiChat, currentUser?.id]);
+  
+  const handleUseBonusTime = useCallback(() => {
+    const isGuestTurn = gameMode === GameMode.PlayerVsPlayer && !p2pService.isHost && players[currentPlayerIndex]?.id === currentUser?.id;
+    if(isGuestTurn) {
+        p2pService.sendMessage({ type: 'ACTION_USE_BONUS' });
+        return;
+    }
+
+    const currentPlayer = players[currentPlayerIndex];
+    if (currentPlayer.bonusTime >= BONUS_TIME_AWARD && isTurnActive) {
+      setPlayers(ps => ps.map(p => p.id === currentPlayer.id ? { ...p, bonusTime: p.bonusTime - BONUS_TIME_AWARD } : p));
+      setTimeLeft(t => t + BONUS_TIME_AWARD);
+    }
+  }, [players, currentPlayerIndex, isTurnActive, gameMode, currentUser?.id]);
+
   const handleP2PData = useCallback((data: P2PMessage) => {
     switch (data.type) {
         case 'USER_PROFILE': {
@@ -118,6 +237,10 @@ const App: React.FC = () => {
                          const existingPlayer = newPlayers[opponentIndex];
                          newPlayers[opponentIndex] = { ...opponentUser, score: existingPlayer.score, bonusTime: existingPlayer.bonusTime, bonusesEarned: existingPlayer.bonusesEarned };
                      }
+                 }
+                 // If I'm the host, I send my profile back
+                 if (p2pService.isHost && currentUser) {
+                    p2pService.sendMessage({ type: 'USER_PROFILE', payload: { user: currentUser } });
                  }
                  return newPlayers;
              });
@@ -134,6 +257,22 @@ const App: React.FC = () => {
             setIsTurnActive(newState.isTurnActive);
             setTurnResult(newState.turnResult);
             setMessages(newState.chatMessages);
+            break;
+        }
+        case 'ACTION_SELECT_WORD': {
+            if (p2pService.isHost) handleWordSelected(data.payload.word);
+            break;
+        }
+        case 'ACTION_USE_BONUS': {
+            if (p2pService.isHost) handleUseBonusTime();
+            break;
+        }
+        case 'FORFEIT': {
+            if (!p2pService.isHost) return; // Only host handles this
+            const winner = players.find(p => p.id === currentUser?.id);
+            if (winner) {
+                handleGameOver(winner, players);
+            }
             break;
         }
         case 'START_GAME':
@@ -172,78 +311,12 @@ const App: React.FC = () => {
             break;
         }
     }
-  }, [players, currentUser]);
+  }, [players, currentUser, handleGameOver, handleWordSelected, handleUseBonusTime]);
   
   // Subscribe to P2P data events
   useEffect(() => {
     return p2pService.on('data-received', handleP2PData);
   }, [handleP2PData]);
-
-  const handleGameOver = useCallback((winningPlayer: Player, finalPlayersState: Player[]) => {
-    setWinner(winningPlayer);
-    setPlayers(finalPlayersState);
-    handleNavigate(GameState.WinnerCelebration);
-    setIsTurnActive(false);
-    
-    if (gameMode === GameMode.PlayerVsPlayer && p2pService.isHost) {
-        p2pService.sendMessage({ type: 'GAME_OVER', payload: { winner: winningPlayer, finalPlayers: finalPlayersState } });
-    }
-
-    const losingPlayer = finalPlayersState.find(p => p.id !== winningPlayer.id);
-    if (losingPlayer && !winningPlayer.isAI && !losingPlayer.isAI) {
-      authService.updateStats(winningPlayer, losingPlayer);
-    }
-  }, [gameMode, handleNavigate]);
-
-  const advanceTurn = useCallback((currentPlayers: Player[], currentGridData: GridData, nextPlayerIdx: number) => {
-    setIsTurnActive(false);
-    
-    setTimeout(() => {
-      const p1Score = currentGridData.words.filter(w => w.foundBy === currentPlayers[0].id).length;
-      const p2Score = currentGridData.words.filter(w => w.foundBy === currentPlayers[1].id).length;
-
-      if(p1Score >= wordsToWin) { handleGameOver(currentPlayers[0], currentPlayers); return; }
-      if(p2Score >= wordsToWin) { handleGameOver(currentPlayers[1], currentPlayers); return; }
-
-      const nextWord = currentGridData.words.find(w => !w.found);
-      if (!nextWord) {
-        const winner = p1Score > p2Score ? currentPlayers[0] : p2Score > p1Score ? currentPlayers[1] : currentPlayers[0];
-        handleGameOver(winner, currentPlayers);
-        return;
-      }
-
-      setWordToFind(nextWord);
-      setCurrentPlayerIndex(nextPlayerIdx);
-      setTurnType('normal');
-      setTimeLeft(TURN_DURATION);
-      setIsTurnActive(true);
-      setTurnResult(null);
-    }, 2000);
-  }, [handleGameOver, wordsToWin, players]);
-
-  const handleSendMessage = useCallback((message: string, user: Player) => {
-    const newMessage: ChatMessage = { userId: user.id, userName: user.name, message };
-    setMessages(prev => [...prev, newMessage]);
-    if (gameMode === GameMode.PlayerVsPlayer) {
-        p2pService.sendMessage({ type: 'CHAT_MESSAGE', payload: newMessage });
-    }
-  }, [gameMode]);
-
-  const triggerAiChat = useCallback(async (eventType: ChatEventType, playersOverride?: Player[]) => {
-    const currentPlayers = playersOverride || players;
-    const aiPlayer = currentPlayers.find(p => p.isAI);
-    const humanPlayer = currentPlayers.find(p => !p.isAI);
-
-    if (gameMode !== GameMode.PlayerVsComputer || !aiPlayer || !humanPlayer || !aiCanChat) return;
-    
-    setAiCanChat(false);
-    setTimeout(() => setAiCanChat(true), 4000 + Math.random() * 3000); // Cooldown of 4-7s
-
-    const message = await aiService.generateAiChatMessage(aiPlayer, humanPlayer, eventType);
-    if (message) {
-        handleSendMessage(message, aiPlayer);
-    }
-  }, [players, handleSendMessage, aiCanChat, gameMode]);
 
   const startNewGame = useCallback(async (fpIndex: number, theme?: string) => {
     if (!gameMode || (gameMode === GameMode.PlayerVsPlayer && !p2pService.isHost)) return;
@@ -309,8 +382,8 @@ const App: React.FC = () => {
    useEffect(() => {
     if (gameState !== GameState.InGame || !isTurnActive || !wordToFind) return;
 
-    const currentPlayer = players[currentPlayerIndex];
-    if (gameMode === GameMode.PlayerVsPlayer && currentPlayer?.id !== currentUser?.id) return; // Only run timer for the active player on their client
+    // In PvP, only the host runs the timer logic. State is broadcasted.
+    if (gameMode === GameMode.PlayerVsPlayer && !p2pService.isHost) return; 
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -325,7 +398,7 @@ const App: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isTurnActive, wordToFind, players, currentPlayerIndex, gameState, currentUser, gameMode, handleTimeUp]);
+  }, [isTurnActive, wordToFind, gameState, gameMode, handleTimeUp]);
 
   const handleLogin = (user: User) => {
     authService.setCurrentUserId(user.id);
@@ -376,7 +449,7 @@ const App: React.FC = () => {
   }, [handleNavigate]);
 
   const broadcastGameState = useCallback(() => {
-     if (gameMode !== GameMode.PlayerVsPlayer) return;
+     if (gameMode !== GameMode.PlayerVsPlayer || !p2pService.isHost) return;
 
      const fullState: FullGameState = {
         players, gridData: gridData!, currentPlayerIndex, turnType, wordToFind, timeLeft, isTurnActive, turnResult, chatMessages: messages
@@ -391,50 +464,54 @@ const App: React.FC = () => {
     }
   }, [players, gridData, currentPlayerIndex, turnType, wordToFind, timeLeft, isTurnActive, turnResult, messages, gameState, broadcastGameState]);
 
-  const handleWordSelected = useCallback((word: string) => {
-    if (!isTurnActive || word.toUpperCase() !== wordToFind?.text.toUpperCase()) return;
-    
-    setIsTurnActive(false);
-    setTurnResult('success');
-    
-    const currentPlayer = players[currentPlayerIndex];
-    if (turnType === 'steal') { handleGameOver(currentPlayer, players); return; }
-    
-    const updatedPlayers = players.map(p => p.id === currentPlayer.id ? { ...p, score: p.score + 1, bonusTime: p.bonusTime + (timeLeft >= BONUS_TIME_THRESHOLD ? BONUS_TIME_AWARD : 0), bonusesEarned: p.bonusesEarned + (timeLeft >= BONUS_TIME_THRESHOLD ? 1 : 0) } : p);
-    
-    if (gameMode === GameMode.PlayerVsComputer) {
-        if (currentPlayer.isAI) triggerAiChat(ChatEventType.AiFoundWord, updatedPlayers);
-        else triggerAiChat(ChatEventType.PlayerFoundWord, updatedPlayers);
-    }
-    
-    setPlayers(updatedPlayers);
-    
-    const updatedGridData = { ...gridData!, words: gridData!.words.map(w => w.text === wordToFind.text ? { ...w, found: true, foundBy: currentPlayer.id } : w) };
-    setGridData(updatedGridData);
-    
-    advanceTurn(updatedPlayers, updatedGridData, (currentPlayerIndex + 1) % 2);
-  }, [isTurnActive, wordToFind, turnType, players, gridData, timeLeft, advanceTurn, handleGameOver, currentPlayerIndex, gameMode, triggerAiChat]);
-  
-  const handleUseBonusTime = useCallback(() => {
-    const currentPlayer = players[currentPlayerIndex];
-    if (currentPlayer.bonusTime >= BONUS_TIME_AWARD && isTurnActive) {
-      setPlayers(ps => ps.map(p => p.id === currentPlayer.id ? { ...p, bonusTime: p.bonusTime - BONUS_TIME_AWARD } : p));
-      setTimeLeft(t => t + BONUS_TIME_AWARD);
-    }
-  }, [players, currentPlayerIndex, isTurnActive]);
-  
-  // AI Turn Logic
+  // AI Turn Logic - Fixed
   useEffect(() => {
     if (gameState === GameState.InGame && isTurnActive && wordToFind && players[currentPlayerIndex]?.isAI) {
+      // If AI is already thinking about this specific word, don't start a new timer.
+      // This prevents the timer tick from resetting the AI's thought process.
+      if (aiTurnWordRef.current === wordToFind.text) {
+        return;
+      }
+      aiTurnWordRef.current = wordToFind.text;
+
       const aiPlayer = players[currentPlayerIndex];
-      const difficultyDelay = { easy: 5000 + Math.random() * 5000, medium: 3000 + Math.random() * 3000, hard: 1000 + Math.random() * 2000 };
-      const aiId = aiPlayer.id.split('_')[1] as 'easy' | 'medium' | 'hard';
+      const difficultyDelay = {
+        [Difficulty.Easy]: 5000 + Math.random() * 5000,   // 5-10s
+        [Difficulty.Medium]: 3000 + Math.random() * 3000, // 3-6s
+        [Difficulty.Hard]: 1000 + Math.random() * 2000,  // 1-3s
+      };
+      const aiId = aiPlayer.id.split('_')[1] as Difficulty;
       const delay = difficultyDelay[aiId] || 7000;
-      const timeout = setTimeout(() => handleWordSelected(wordToFind.text), delay);
+
+      const timeout = setTimeout(() => {
+        handleWordSelected(wordToFind.text);
+        aiTurnWordRef.current = null; // AI has made its move, clear ref
+      }, delay);
+
       return () => clearTimeout(timeout);
+    } else {
+      // If turn is not active or it's not the AI's turn, clear the ref.
+      aiTurnWordRef.current = null;
     }
   }, [gameState, isTurnActive, wordToFind, players, currentPlayerIndex, handleWordSelected]);
 
+  const handleForfeit = useCallback(() => {
+    if (gameMode === GameMode.PlayerVsComputer) {
+        const winner = players.find(p => p.isAI);
+        if (winner) handleGameOver(winner, players);
+    } else if (gameMode === GameMode.PlayerVsPlayer) {
+        const winner = players.find(p => p.id !== currentUser?.id);
+        if(!winner) return;
+
+        if (p2pService.isHost) {
+            handleGameOver(winner, players);
+        } else {
+            p2pService.sendMessage({ type: 'FORFEIT' });
+            // Optimistically transition for better guest UX
+            handleGameOver(winner, players);
+        }
+    }
+  }, [gameMode, players, currentUser, handleGameOver]);
 
   const handleFlipComplete = useCallback(async (fpIndex: number) => {
     if (p2pService.isHost) {
@@ -479,7 +556,7 @@ const App: React.FC = () => {
     setVotes(prev => ({ ...prev, [currentUser.id]: theme }));
     if (gameMode === GameMode.PlayerVsPlayer) {
         p2pService.sendMessage({ type: 'THEME_VOTE', payload: { theme } });
-    } else { // Assumes gameMode is PlayerVsComputer
+    } else if (gameMode === GameMode.PlayerVsComputer) {
         const aiPlayer = players.find(p => p.isAI);
         if (aiPlayer) {
             const randomTheme = THEMES[Math.floor(Math.random() * THEMES.length)];
@@ -489,52 +566,77 @@ const App: React.FC = () => {
   };
 
   const handleThemeSelected = useCallback(async (theme: string) => {
-    if (!gameMode) return;
-    if (gameMode === GameMode.PlayerVsComputer) {
+    switch(gameMode) {
+      case GameMode.PlayerVsComputer:
         await startNewGame(0, theme);
-    } else {
-        // In PlayerVsPlayer mode, this is only called by the host,
-        // so no need to check gameMode or isHost here.
-        const nextFirstPlayerIndex = (currentPlayerIndex + 1) % 2;
+        break;
+      case GameMode.PlayerVsPlayer: {
+        const nextFirstPlayerIndex = (players.findIndex(p => p.id === currentUser?.id) + 1) % 2;
         await startNewGame(nextFirstPlayerIndex, theme);
+        break;
+      }
     }
-  }, [currentPlayerIndex, startNewGame, gameMode]);
+  }, [startNewGame, gameMode, players, currentUser]);
 
   useEffect(() => {
-    if (gameState !== GameState.ThemeVoting || players.length < 2) return;
+    if (gameState !== GameState.ThemeVoting || players.length < 2 || !currentUser) return;
+    if (Object.keys(votes).length !== players.length) return;
 
-    const allVoted = Object.keys(votes).length === players.length;
+    let winningTheme: string | undefined;
+    const [p1, p2] = players;
+    const vote1 = votes[p1.id];
+    const vote2 = votes[p2.id];
 
-    if (allVoted) {
-        let winningTheme: string;
-        const [p1, p2] = players;
-        const vote1 = votes[p1.id];
-        const vote2 = votes[p2.id];
-
-        if (vote1 === vote2) {
-            winningTheme = vote1;
-        } else if (gameMode === GameMode.PlayerVsPlayer) {
-            const host = p2pService.isHost ? currentUser! : players.find(p => p.id !== currentUser!.id)!;
+    if (vote1 === vote2) {
+      winningTheme = vote1;
+    } else {
+      switch (gameMode) {
+        case GameMode.PlayerVsPlayer: {
+          const host = p2pService.isHost ? currentUser : players.find(p => p.id !== currentUser!.id);
+          if (host) {
             winningTheme = votes[host.id];
-        } else {
-            winningTheme = Math.random() < 0.5 ? vote1 : vote2;
+          }
+          if (!p2pService.isHost) {
+            return; // Guest waits for host to start the game
+          }
+          break;
         }
-        
-        if (gameMode === GameMode.PlayerVsPlayer && !p2pService.isHost) return;
+        case GameMode.PlayerVsComputer: {
+          winningTheme = Math.random() < 0.5 ? vote1 : vote2;
+          break;
+        }
+      }
+    }
 
-        setTimeout(() => {
-            handleThemeSelected(winningTheme);
-        }, 2000);
+    if (winningTheme) {
+      setTimeout(() => {
+        handleThemeSelected(winningTheme!);
+      }, 2000);
+    } else {
+      console.error("Could not determine winning theme. Votes:", votes, "Game Mode:", gameMode);
+      // As a fallback, host picks their own theme or a default one
+      if (gameMode === GameMode.PlayerVsPlayer && p2pService.isHost) {
+        const fallbackTheme = votes[currentUser.id] || THEMES[0];
+        setTimeout(() => handleThemeSelected(fallbackTheme), 2000);
+      }
     }
   }, [votes, players, gameState, gameMode, handleThemeSelected, currentUser]);
   
   const handleReadyToStart = useCallback(() => {
+    setIsStartingGame(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isStartingGame) return;
+
+    setIsStartingGame(false); // Reset trigger
+
     if (gameMode === GameMode.PlayerVsComputer) {
-      startNewGame(0);
-    } else {
-      handleNavigate(GameState.CoinFlip);
+        startNewGame(0);
+    } else if (gameMode === GameMode.PlayerVsPlayer) {
+        handleNavigate(GameState.CoinFlip);
     }
-  }, [gameMode, startNewGame, handleNavigate]);
+  }, [isStartingGame, gameMode, startNewGame, handleNavigate]);
 
   const renderContent = () => {
     if (!currentUser) return null;
@@ -566,12 +668,12 @@ const App: React.FC = () => {
             currentPlayerIndex={currentPlayerIndex}
             onWordSelected={handleWordSelected}
             onUseBonusTime={handleUseBonusTime}
+            onForfeit={handleForfeit}
             turnType={turnType}
             wordToFind={wordToFind}
             timeLeft={timeLeft}
             isTurnActive={isTurnActive}
             turnResult={turnResult}
-            onGameOver={handleGameOver}
             chatMessages={messages}
             onSendMessage={handleSendMessage}
             wordsToWin={wordsToWin}
